@@ -1,0 +1,665 @@
+/* ===== EXACT COLOR PALETTE FROM COMMAND DASHBOARD ===== */
+:root {
+    --bg-dark: #0A0F1E;           /* Main background - dark navy */
+    --card-bg: #141B2B;            /* Card background - slightly lighter */
+    --header-bg: #1E2639;           /* Header background */
+    --accent-teal: #2DD4BF;          /* Teal accent - for highlights */
+    --accent-blue: #3B82F6;          /* Blue accent - for links/buttons */
+    --accent-purple: #8B5CF6;        /* Purple accent - for special items */
+    --accent-yellow: #F59E0B;         /* Yellow - for warnings/batches */
+    --accent-green: #10B981;           /* Green - for success */
+    --accent-red: #EF4444;              /* Red - for priority/alerts */
+    --text-primary: #FFFFFF;             /* Primary text - white */
+    --text-secondary: #94A3B8;            /* Secondary text - light gray */
+    --text-muted: #64748B;                 /* Muted text - darker gray */
+    --border-color: #2D3748;                /* Border color */
+    --grid-line: #2D3748;                    /* Grid lines */
+}
+/* ===== EXACT COMMAND DASHBOARD DESIGN ===== */
+/* Based on the provided image - 100% exact match */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background-color: #0A0F1E;
+    color: #FFFFFF;
+    line-height: 1.5;
+}
+
+/* ===== MAIN DASHBOARD LAYOUT ===== */
+.dashboard {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 100vh;
+}
+
+/* ===== SIDEBAR - EXACT MATCH ===== */
+.sidebar {
+    background: linear-gradient(180deg, #0A0F1E 0%, #141B2B 100%);
+    border-right: 1px solid #2D3748;
+    padding: 24px 16px;
+}
+
+.sidebar-header {
+    padding: 16px 0 24px 0;
+    border-bottom: 1px solid #2D3748;
+    margin-bottom: 24px;
+}
+
+.sidebar-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #FFFFFF;
+    margin: 12px 0 4px 0;
+}
+
+.sidebar-header p {
+    font-size: 12px;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.sidebar-nav {
+    list-style: none;
+}
+
+.sidebar-nav li {
+    margin-bottom: 4px;
+}
+
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    color: #94A3B8;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.sidebar-nav a:hover,
+.sidebar-nav a.active {
+    background: #1E2639;
+    color: #2DD4BF;
+}
+
+.sidebar-nav a i {
+    width: 24px;
+    margin-right: 12px;
+    font-size: 16px;
+}
+
+.sidebar-nav .active i {
+    color: #2DD4BF;
+}
+
+/* ===== MAIN CONTENT AREA ===== */
+.main-content {
+    padding: 24px;
+    background: #0A0F1E;
+}
+
+/* ===== TOP HEADER - EXACT MATCH ===== */
+.top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding: 0 4px;
+}
+
+.header-title h1 {
+    font-size: 28px;
+    font-weight: 600;
+    color: #FFFFFF;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+
+.header-title p {
+    font-size: 14px;
+    color: #64748B;
+}
+
+.header-stats {
+    display: flex;
+    gap: 48px;
+}
+
+.stat-item {
+    text-align: right;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    color: #FFFFFF;
+}
+
+/* ===== STATS CARDS GRID ===== */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: #141B2B;
+    border: 1px solid #2D3748;
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    height: 3px;
+    background: linear-gradient(90deg, #2DD4BF, #3B82F6);
+    border-radius: 12px 12px 0 0;
+}
+
+.stat-card-title {
+    font-size: 13px;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.stat-card-value {
+    font-size: 36px;
+    font-weight: 600;
+    color: #FFFFFF;
+    margin-bottom: 4px;
+}
+
+.stat-card-trend {
+    font-size: 12px;
+    color: #10B981;
+}
+
+.stat-card-trend.down {
+    color: #EF4444;
+}
+
+/* ===== BATCH PROGRESS SECTION - EXACT MATCH ===== */
+.batch-section {
+    background: #141B2B;
+    border: 1px solid #2D3748;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.batch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.batch-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: #FFFFFF;
+}
+
+.batch-numbers {
+    display: flex;
+    gap: 32px;
+}
+
+.batch-number {
+    text-align: right;
+}
+
+.batch-label {
+    font-size: 12px;
+    color: #64748B;
+    margin-bottom: 4px;
+}
+
+.batch-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: #FFFFFF;
+}
+
+.batch-value.highlight {
+    color: #2DD4BF;
+}
+
+.progress-container {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 20px;
+    align-items: center;
+}
+
+.progress-bar {
+    height: 8px;
+    background: #1E2639;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 35%;
+    background: linear-gradient(90deg, #2DD4BF, #3B82F6);
+    border-radius: 4px;
+}
+
+.progress-stats {
+    display: flex;
+    gap: 24px;
+    color: #64748B;
+    font-size: 13px;
+}
+
+/* ===== DAILY CLINIC STATUS HEADER ===== */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.section-header h2 {
+    font-size: 18px;
+    font-weight: 500;
+    color: #FFFFFF;
+}
+
+.section-header span {
+    color: #64748B;
+    font-size: 13px;
+}
+
+/* ===== CLINIC GRID - EXACT MATCH ===== */
+.clinic-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.clinic-card {
+    background: #141B2B;
+    border: 1px solid #2D3748;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.clinic-header {
+    background: #1E2639;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #2D3748;
+}
+
+.clinic-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #FFFFFF;
+    text-transform: uppercase;
+}
+
+.clinic-batch {
+    background: #2DD4BF;
+    color: #0A0F1E;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.clinic-content {
+    padding: 16px;
+}
+
+.clinic-queue {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #2D3748;
+}
+
+.queue-count {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2DD4BF;
+}
+
+.queue-label {
+    font-size: 12px;
+    color: #64748B;
+}
+
+.clinic-detail {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+.detail-label {
+    color: #64748B;
+}
+
+.detail-value {
+    color: #FFFFFF;
+    font-weight: 500;
+}
+
+.clinic-divider {
+    margin: 12px 0;
+    border-top: 1px dashed #2D3748;
+}
+
+.clinic-schedule {
+    font-size: 12px;
+    color: #64748B;
+}
+
+/* Special layout for the bottom row */
+.clinic-grid-bottom {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+}
+
+/* ===== ER GENERAL SECTION ===== */
+.er-section {
+    background: #141B2B;
+    border: 1px solid #2D3748;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.er-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #FFFFFF;
+}
+
+.er-tag {
+    background: #2DD4BF;
+    color: #0A0F1E;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* ===== PE PROCESSING SECTION ===== */
+.pe-section {
+    background: #141B2B;
+    border: 1px solid #2D3748;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.pe-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #FFFFFF;
+}
+
+.pe-status {
+    background: #10B981;
+    color: #FFFFFF;
+    padding: 4px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* ===== SYSTEM ALERTS ===== */
+.alerts-section {
+    background: #141B2B;
+    border: 1px solid #2D3748;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+}
+
+.alerts-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.alerts-header i {
+    color: #F59E0B;
+}
+
+.alerts-header h3 {
+    font-size: 16px;
+    font-weight: 500;
+    color: #FFFFFF;
+}
+
+.alert-item {
+    background: #1E2639;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #FFFFFF;
+    border-left: 3px solid #F59E0B;
+}
+
+/* ===== RECENT ACTIVITY TABLE - EXACT MATCH ===== */
+.activity-section {
+    background: #141B2B;
+    border: 1px solid #2D3748;
+    border-radius: 12px;
+    margin-top: 24px;
+}
+
+.activity-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #2D3748;
+}
+
+.activity-header h3 {
+    font-size: 16px;
+    font-weight: 500;
+    color: #FFFFFF;
+}
+
+.activity-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.activity-table th {
+    text-align: left;
+    padding: 12px 20px;
+    background: #1E2639;
+    color: #64748B;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.activity-table td {
+    padding: 12px 20px;
+    border-bottom: 1px solid #2D3748;
+    color: #FFFFFF;
+    font-size: 14px;
+}
+
+.activity-table tr:last-child td {
+    border-bottom: none;
+}
+
+.activity-table tr:hover td {
+    background: #1E2639;
+}
+
+.ticket-number {
+    color: #F59E0B;
+    font-weight: 600;
+}
+
+.patient-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.patient-name i {
+    color: #EF4444;
+    font-size: 12px;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-updated {
+    background: #2DD4BF;
+    color: #0A0F1E;
+}
+
+.status-routine {
+    background: #3B82F6;
+    color: #FFFFFF;
+}
+
+.location {
+    color: #94A3B8;
+}
+
+.time {
+    color: #64748B;
+    font-size: 13px;
+}
+
+/* ===== BADGES AND TAGS ===== */
+.batch-badge {
+    background: #2DD4BF;
+    color: #0A0F1E;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.priority-badge {
+    background: #EF4444;
+    color: #FFFFFF;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #2DD4BF;
+    color: #0A0F1E;
+}
+
+.btn-primary:hover {
+    background: #14b8a6;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid #2D3748;
+    color: #FFFFFF;
+}
+
+.btn-outline:hover {
+    background: #1E2639;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1400px) {
+    .clinic-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .clinic-grid-bottom {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 1200px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .clinic-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard {
+        grid-template-columns: 1fr;
+    }
+    .sidebar {
+        display: none;
+    }
+    .top-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    .header-stats {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
