@@ -16,14 +16,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
 }
 
 // ============================================
-// DATABASE CONNECTION (Create $db FIRST)
+// DATABASE CONNECTION
 // ============================================
 $database = new Database();
 $db = $database->getConnection();
 $queueManager = new QueueManager($db);
 
 // ============================================
-// SESSION TIMEOUT (Now $db exists!)
+// SESSION TIMEOUT
 // ============================================
 require_once dirname(__DIR__) . '/includes/SessionManager.php';
 $sessionManager = new SessionManager($db);
@@ -35,917 +35,429 @@ $sessionManager->logActivity('Viewed clinic congestion page');
 $clinic_stats = $queueManager->getAllClinicsQueueStats();
 $least_congested = $queueManager->findLeastCongestedClinic();
 
-// Also get detailed clinic stats with in_progress counts
+// Get detailed clinic stats with in_progress counts
 $detailed_query = "SELECT 
     c.id,
     c.name,
     c.capacity_per_hour,
-    COUNT(CASE WHEN q.status IN ('waiting', 'called') AND DATE(q.registered_at) = CURDATE() THEN 1 END) as waiting_count,
-    COUNT(CASE WHEN q.status = 'in-progress' AND DATE(q.registered_at) = CURDATE() THEN 1 END) as in_progress_count,
-    COUNT(CASE WHEN q.status = 'completed' AND DATE(q.registered_at) = CURDATE() THEN 1 END) as completed_count
+    COUNT(CASE WHEN q.status = 'pending' THEN 1 END) as pending_count,
+    COUNT(CASE WHEN q.status = 'in_progress' THEN 1 END) as in_progress_count,
+    COUNT(CASE WHEN q.status = 'completed' THEN 1 END) as completed_count
 FROM clinics c
-LEFT JOIN queue_entries q ON c.id = q.clinic_id
+LEFT JOIN queue_entries q ON c.id = q.clinic_id AND DATE(q.registered_at) = CURDATE()
 WHERE c.is_active = 1
-GROUP BY c.id
-ORDER BY waiting_count ASC";
+GROUP BY c.id, c.name, c.capacity_per_hour
+ORDER BY name";
 
-$detailed_clinics = $db->query($detailed_query)->fetchAll(PDO::FETCH_ASSOC);
+$detailed_stats = $db->query($detailed_query)->fetchAll(PDO::FETCH_ASSOC);
 
-// Create a lookup array for detailed stats
-$detailed_stats = [];
-foreach ($detailed_clinics as $dc) {
-    $detailed_stats[$dc['id']] = $dc;
+// Calculate system-wide summary metrics
+$total_pending = 0;
+$total_in_progress = 0;
+$total_completed = 0;
+$high_congestion_count = 0;
+
+foreach ($clinic_stats as $stat) {
+    $total_pending += isset($stat['waiting_count']) ? $stat['waiting_count'] : 0;
+    $total_completed += isset($stat['completed_count']) ? $stat['completed_count'] : 0;
+    
+    // Fix: Use a safe isset check to prevent the undefined array key error
+    if (isset($stat['congestion_level'])) {
+        if ($stat['congestion_level'] === 'High' || $stat['congestion_level'] === 'Critical') {
+            $high_congestion_count++;
+        }
+    }
 }
 
-// Enhance least_congested with missing data
-$enhanced_clinics = [];
-foreach ($least_congested as $clinic) {
-    $clinic_id = $clinic['id'];
-    $enhanced_clinic = $clinic;
-    $enhanced_clinic['in_progress'] = $detailed_stats[$clinic_id]['in_progress_count'] ?? 0;
-    $enhanced_clinic['waiting_count'] = $detailed_stats[$clinic_id]['waiting_count'] ?? $clinic['current_load'];
-    $enhanced_clinic['completed'] = $detailed_stats[$clinic_id]['completed_count'] ?? 0;
-    $enhanced_clinics[] = $enhanced_clinic;
+foreach ($detailed_stats as $ds) {
+    $total_in_progress += $ds['in_progress_count'];
 }
 
-// Calculate summary statistics
-$total_waiting = 0;
-$total_capacity = 0;
-$avg_congestion = 0;
-
-foreach ($enhanced_clinics as $clinic) {
-    $total_waiting += $clinic['current_load'];
-    $total_capacity += $clinic['capacity_per_hour'];
-}
-$avg_congestion = $total_capacity > 0 ? round(($total_waiting / $total_capacity) * 100) : 0;
+$total_active_queue = $total_pending + $total_in_progress;
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinic Congestion Monitor | 4ID Station Hospital | Camp Evangelista</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-    <style>
-        /* ============================================
-           CSS Variables - Color Palette
-           ============================================ */
-        :root {
-            --soft-blue: #4A90E2;
-            --soft-blue-dark: #3A7BC8;
-            --soft-blue-light: #E7F3FB;
-            --teal: #009688;
-            --teal-dark: #00796B;
-            --soft-green: #A4D1B1;
-            --warm-yellow: #FFB84D;
-            --light-coral: #FF6F61;
-            --white: #FFFFFF;
-            --light-gray: #F2F2F2;
-            --light-beige: #F4F1EC;
-            --pale-blue: #E7F3FB;
-            --dark-gray: #212121;
-            --charcoal: #333333;
-            --border-light: #E5E9F0;
-            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--light-gray);
-            color: var(--charcoal);
-            line-height: 1.5;
-        }
-
-        /* ============================================
-           Sidebar Navigation
-           ============================================ */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 280px;
-            height: 100vh;
-            background: var(--white);
-            box-shadow: var(--shadow-md);
-            z-index: 1000;
-            overflow-y: auto;
-            border-right: 1px solid var(--border-light);
-        }
-
-        .sidebar-logo {
-            padding: 28px 24px;
-            border-bottom: 1px solid var(--border-light);
-            margin-bottom: 24px;
-        }
-
-        .sidebar-logo h2 {
-            color: var(--soft-blue);
-            font-size: 1.1rem;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-            margin-bottom: 4px;
-        }
-
-        .sidebar-logo p {
-            color: var(--charcoal);
-            font-size: 0.7rem;
-            opacity: 0.7;
-        }
-
-        .nav-menu {
-            list-style: none;
-            padding: 0 16px;
-        }
-
-        .nav-item {
-            margin-bottom: 4px;
-        }
-
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            border-radius: 12px;
-            color: var(--charcoal);
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .nav-link i {
-            width: 22px;
-            color: var(--soft-blue);
-            font-size: 1.1rem;
-        }
-
-        .nav-link:hover {
-            background: var(--pale-blue);
-            color: var(--soft-blue);
-        }
-
-        .nav-link.active {
-            background: var(--soft-blue);
-            color: white;
-        }
-
-        .nav-link.active i {
-            color: white;
-        }
-
-        /* ============================================
-           Main Content
-           ============================================ */
-        .main-content {
-            margin-left: 280px;
-            padding: 28px 36px;
-            min-height: 100vh;
-        }
-
-        /* Top Bar */
-        .top-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 32px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .page-title h1 {
-            color: var(--dark-gray);
-            font-size: 1.75rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: 4px;
-        }
-
-        .page-title p {
-            color: var(--charcoal);
-            font-size: 0.85rem;
-            opacity: 0.7;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .date-time {
-            text-align: right;
-            font-size: 0.85rem;
-        }
-
-        .date {
-            color: var(--charcoal);
-            font-weight: 500;
-        }
-
-        .time {
-            color: var(--soft-blue);
-            font-weight: 600;
-        }
-
-        .user-avatar {
-            width: 44px;
-            height: 44px;
-            background: var(--pale-blue);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--soft-blue);
-            font-weight: 600;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-bottom: 32px;
-        }
-
-        .stat-card {
-            background: var(--white);
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--border-light);
-            transition: all 0.2s ease;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .stat-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .stat-icon {
-            width: 48px;
-            height: 48px;
-            background: var(--pale-blue);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--soft-blue);
-            font-size: 1.5rem;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-            margin-bottom: 4px;
-        }
-
-        .stat-label {
-            color: var(--charcoal);
-            font-size: 0.8rem;
-            opacity: 0.7;
-            font-weight: 500;
-        }
-
-        /* Recommendation Card */
-        .recommendation-card {
-            background: linear-gradient(135deg, var(--pale-blue) 0%, var(--white) 100%);
-            border-radius: 20px;
-            padding: 24px;
-            margin-bottom: 32px;
-            border: 1px solid var(--border-light);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .recommendation-content {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-
-        .recommendation-icon {
-            width: 60px;
-            height: 60px;
-            background: var(--soft-green);
-            border-radius: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--dark-gray);
-            font-size: 1.8rem;
-        }
-
-        .recommendation-text h3 {
-            color: var(--dark-gray);
-            font-size: 1.1rem;
-            margin-bottom: 4px;
-        }
-
-        .recommendation-text p {
-            color: var(--charcoal);
-            font-size: 0.85rem;
-        }
-
-        .recommendation-badge {
-            background: var(--teal);
-            color: white;
-            padding: 8px 20px;
-            border-radius: 40px;
-            font-weight: 600;
-            font-size: 1.2rem;
-        }
-
-        /* Table Panel */
-        .panel {
-            background: var(--white);
-            border-radius: 20px;
-            border: 1px solid var(--border-light);
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .panel-header {
-            padding: 18px 24px;
-            border-bottom: 1px solid var(--border-light);
-            background: var(--white);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-
-        .panel-header h3 {
-            color: var(--dark-gray);
-            font-size: 1rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .panel-header h3 i {
-            color: var(--soft-blue);
-        }
-
-        .panel-body {
-            padding: 0;
-        }
-
-        /* Table Styles */
-        .table-container {
-            overflow-x: auto;
-        }
-
-        .congestion-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .congestion-table th {
-            text-align: left;
-            padding: 16px 20px;
-            background: var(--light-gray);
-            font-weight: 600;
-            color: var(--dark-gray);
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .congestion-table td {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-light);
-            color: var(--charcoal);
-            font-size: 0.85rem;
-            vertical-align: middle;
-        }
-
-        .congestion-table tr:hover td {
-            background: var(--pale-blue);
-        }
-
-        .congestion-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        /* Rank Badge */
-        .rank-badge {
-            width: 36px;
-            height: 36px;
-            background: var(--soft-blue);
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: white;
-            font-size: 0.9rem;
-        }
-
-        .rank-badge.gold {
-            background: #F5A623;
-        }
-
-        .rank-badge.silver {
-            background: #9E9E9E;
-        }
-
-        .rank-badge.bronze {
-            background: #CD7F32;
-        }
-
-        /* Congestion Level Badge */
-        .congestion-level {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        .level-low {
-            background: var(--soft-green);
-            color: var(--dark-gray);
-        }
-
-        .level-medium {
-            background: var(--warm-yellow);
-            color: var(--dark-gray);
-        }
-
-        .level-high {
-            background: var(--light-coral);
-            color: white;
-        }
-
-        /* Progress Bar */
-        .progress-container {
-            width: 100%;
-            min-width: 120px;
-        }
-
-        .progress-bar-bg {
-            background: var(--light-gray);
-            height: 8px;
-            border-radius: 4px;
-            overflow: hidden;
-            margin-bottom: 4px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-
-        .progress-fill.low {
-            background: var(--soft-green);
-        }
-
-        .progress-fill.medium {
-            background: var(--warm-yellow);
-        }
-
-        .progress-fill.high {
-            background: var(--light-coral);
-        }
-
-        .progress-percentage {
-            font-size: 0.7rem;
-            color: var(--charcoal);
-            opacity: 0.7;
-        }
-
-        /* Action Button */
-        .btn-view {
-            background: var(--teal);
-            color: white;
-            border: none;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s;
-        }
-
-        .btn-view:hover {
-            background: var(--teal-dark);
-            transform: translateY(-1px);
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    }
+                }
             }
         }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-                transition: transform 0.3s;
-            }
-            .main-content {
-                margin-left: 0;
-                padding: 20px;
-            }
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-            .recommendation-card {
-                flex-direction: column;
-                text-align: center;
-            }
-            .recommendation-content {
-                justify-content: center;
-            }
-            .congestion-table th,
-            .congestion-table td {
-                padding: 12px;
-            }
-        }
-    </style>
+    </script>
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-[#111827] text-slate-800 dark:text-slate-100 font-sans antialiased min-h-full transition-colors duration-200">
 
-<!-- Sidebar Navigation -->
-<aside class="sidebar">
-    <div class="sidebar-logo">
-        <h2>4ID Station Hospital</h2>
-        <p>Camp Evangelista</p>
-    </div>
-    <ul class="nav-menu">
-        <li class="nav-item">
-            <a href="dashboard.php" class="nav-link">
-                <i class="fas fa-tachometer-alt"></i>
-                <span>Dashboard</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="patients.php" class="nav-link">
-                <i class="fas fa-users"></i>
-                <span>Patients</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="queue-monitor.php" class="nav-link">
-                <i class="fas fa-chart-line"></i>
-                <span>Queue Monitor</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="clinic-congestion.php" class="nav-link active">
-                <i class="fas fa-chart-simple"></i>
-                <span>Clinic Congestion</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="reports.php" class="nav-link">
-                <i class="fas fa-chart-bar"></i>
-                <span>Reports</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="users.php" class="nav-link">
-                <i class="fas fa-users-cog"></i>
-                <span>User Management</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="login-monitor.php" class="nav-link">
-                <i class="fas fa-history"></i>
-                <span>Login Monitor</span>
-            </a>
-        </li>
-        <li class="nav-item" style="margin-top: 20px; border-top: 1px solid var(--border-light); padding-top: 16px;">
-            <a href="../logout.php" class="nav-link" style="color: var(--light-coral);" onclick="return confirm('Are you sure you want to logout?')">
-                <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
-            </a>
-        </li>
-    </ul>
-</aside>
-
-<!-- Main Content -->
-<main class="main-content">
-    <!-- Top Bar -->
-    <div class="top-bar">
-        <div class="page-title">
-            <h1>Clinic Congestion Monitor</h1>
-            <p>Real-time clinic loads for smart patient routing</p>
-        </div>
-        <div class="user-info">
-            <div class="date-time">
-                <div class="date" id="currentDate"></div>
-                <div class="time" id="currentTime"></div>
-            </div>
-            <div class="user-avatar">
-                <i class="fas fa-user-md"></i>
-            </div>
-        </div>
-    </div>
-
-    <!-- Statistics Cards -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-header">
-                <div class="stat-icon">
-                    <i class="fas fa-clock"></i>
+    <aside id="sidebar" class="fixed top-0 left-0 h-screen bg-white dark:bg-[#1f2937] border-r border-slate-300/90 dark:border-slate-700/80 shadow-xl md:shadow-none z-[1000] flex flex-col justify-between overflow-x-hidden transition-all duration-300 ease-in-out group/sidebar -translate-x-full md:translate-x-0 w-[260px] md:w-[80px] md:hover:w-[260px]">
+        <div>
+            <div class="p-4 border-b border-slate-300/90 dark:border-slate-700/60 mb-5 flex flex-col items-center justify-center min-h-[160px]">
+                <div class="hidden md:flex md:group-hover/sidebar:hidden flex-col items-center justify-center font-extrabold text-2xl tracking-wider text-sky-600 dark:text-sky-400 leading-tight select-none animate-[fadeIn_0.15s_ease-in-out]">
+                    <span>C</span><span>E</span><span>S</span><span>H</span>
+                </div>
+                <div class="flex md:hidden md:group-hover/sidebar:flex flex-col items-center animate-[fadeIn_0.2s_ease-in-out]">
+                    <img src="../assets/images/logo.png" alt="CESH Logo" class="w-21 h-21 object-contain rounded-xl mb-2.5">
+                    <h2 class="text-slate-800 dark:text-slate-100 text-sm font-extrabold tracking-tight text-center whitespace-nowrap">4ID Station Hospital</h2>
+                    <p class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest text-center whitespace-nowrap mt-1">Camp Evangelista</p>
                 </div>
             </div>
-            <div class="stat-value"><?php echo number_format($total_waiting); ?></div>
-            <div class="stat-label">Total Patients Waiting</div>
+            
+            <nav class="px-3 md:group-hover/sidebar:px-4 transition-all duration-200">
+                <ul class="list-none p-0 space-y-1.5">
+                    <li>
+                        <a href="dashboard.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-tachometer-alt text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="patients.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-users text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Patients</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="queue-monitor.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-chart-line text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Queue Monitor</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="clinic-congestion.php" class="flex items-center rounded-xl font-semibold transition-all duration-150 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-l-4 border-sky-500 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-chart-pie text-base"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Clinic Congestion</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="reports.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-chart-bar text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Reports</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="users.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-users-cog text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">User Management</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="login-monitor.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-history text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Login Monitor</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
         </div>
-        <div class="stat-card">
-            <div class="stat-header">
-                <div class="stat-icon">
-                    <i class="fas fa-building"></i>
+    </aside>
+
+    <main class="min-h-screen ml-0 md:ml-[80px] px-6 sm:px-12 py-8 md:pl-14 lg:pl-16 transition-all duration-300 max-w-[1680px] mx-auto">
+        
+        <header class="flex flex-col sm:flex-row justify-between sm:items-center mb-8 pb-5 border-b border-slate-300/90 dark:border-slate-700/80 gap-4">
+            <div class="flex items-center gap-4">
+                <button id="mobileMenuBtn" class="md:hidden p-2.5 text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1f2937] border border-slate-300 rounded-xl shadow-sm">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <div>
+                    <h1 class="text-slate-900 dark:text-white text-2xl md:text-3xl font-extrabold tracking-tight mb-0.5">Clinic Congestion Monitor</h1>
+                    <p class="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">Real-time load balancing and operational bottleneck analytics</p>
                 </div>
             </div>
-            <div class="stat-value"><?php echo number_format(count($enhanced_clinics)); ?></div>
-            <div class="stat-label">Active Clinics</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-header">
-                <div class="stat-icon">
-                    <i class="fas fa-chart-line"></i>
+            
+            <div class="flex items-center justify-between sm:justify-end gap-4 relative">
+                <div class="text-right text-xs hidden sm:block">
+                    <div class="text-slate-700 dark:text-slate-300 font-bold" id="currentDate"></div>
+                    <div class="text-sky-600 dark:text-sky-400 font-bold font-mono text-sm mt-0.5" id="currentTime"></div>
+                </div>
+
+                <button id="themeToggleBtn" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl transition-all shadow-sm" title="Toggle Visual Mode">
+                    <i id="themeToggleIcon" class="fas fa-moon text-base"></i>
+                </button>
+
+                <div class="relative">
+                    <button id="profileMenuBtn" class="w-10 h-10 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400 border border-slate-300 dark:border-slate-700 shadow-sm hover:border-sky-500 dark:hover:border-sky-400 focus:outline-none transition-all duration-150">
+                        <i class="fas fa-user-md text-lg"></i>
+                    </button>
+                    
+                    <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl shadow-xl z-[1100] animate-[modalFadeIn_0.15s_ease-out]">
+                        <div class="p-3 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-850/40 rounded-t-xl">
+                            <p class="text-xs font-bold text-slate-900 dark:text-white truncate">System Administrator</p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">HOSP-HQ COM</p>
+                        </div>
+                        <div class="p-2">
+                            <a href="../logout.php" onclick="return confirm('Confirm Dashboard Exit?')" class="flex items-center gap-2.5 w-full text-left px-3 py-2.5 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors">
+                                <i class="fas fa-power-off text-sm"></i>
+                                <span>Logout Session</span>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="stat-value"><?php echo $avg_congestion; ?>%</div>
-            <div class="stat-label">Average Congestion</div>
-        </div>
-    </div>
+        </header>
 
-    <!-- Smart Routing Recommendation -->
-    <?php if (!empty($enhanced_clinics) && isset($enhanced_clinics[0])): ?>
-    <div class="recommendation-card">
-        <div class="recommendation-content">
-            <div class="recommendation-icon">
-                <i class="fas fa-route"></i>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="w-9 h-9 bg-amber-50 dark:bg-amber-500/10 rounded-lg flex items-center justify-center text-amber-600 dark:text-amber-400 text-base">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold text-slate-900 dark:text-white mb-1 font-mono"><?= number_format($total_pending); ?></div>
+                <div class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">Total Waiting</div>
             </div>
-            <div class="recommendation-text">
-                <h3>Smart Routing Recommendation</h3>
-                <p>For optimal patient flow, direct new patients to the least congested clinic</p>
-            </div>
-        </div>
-        <div class="recommendation-badge">
-            <i class="fas fa-arrow-right"></i> <?php echo htmlspecialchars($enhanced_clinics[0]['name']); ?>
-        </div>
-    </div>
-    <?php endif; ?>
 
-    <!-- Clinics Ranking Table -->
-    <div class="panel">
-        <div class="panel-header">
-            <h3><i class="fas fa-ranking-star"></i> Clinics Ranked by Load (Least Congested First)</h3>
-            <span><i class="fas fa-chart-simple"></i> Sorted by current patient load</span>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="w-9 h-9 bg-sky-50 dark:bg-sky-500/10 rounded-lg flex items-center justify-center text-sky-600 dark:text-sky-400 text-base">
+                        <i class="fas fa-spinner"></i>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold text-slate-900 dark:text-white mb-1 font-mono"><?= number_format($total_in_progress); ?></div>
+                <div class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">In Consultation</div>
+            </div>
+
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="w-9 h-9 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-base">
+                        <i class="fas fa-check-double"></i>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold text-slate-900 dark:text-white mb-1 font-mono"><?= number_format($total_completed); ?></div>
+                <div class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">Served Clearances</div>
+            </div>
+
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="w-9 h-9 <?= $high_congestion_count > 0 ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400' ?> rounded-lg flex items-center justify-center text-base">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold text-slate-900 dark:text-white mb-1 font-mono"><?= number_format($high_congestion_count); ?></div>
+                <div class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">Overloaded Units</div>
+            </div>
         </div>
-        <div class="panel-body">
-            <div class="table-container">
-                <table class="congestion-table">
+
+        <?php if ($least_congested): ?>
+            <div class="p-4 mb-6 bg-sky-50 dark:bg-sky-500/10 border border-sky-300 dark:border-sky-500/20 text-sky-700 dark:text-sky-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm gap-3">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 rounded-lg bg-sky-500 text-white flex items-center justify-center mr-3 shrink-0">
+                        <i class="fas fa-route text-xs"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-extrabold uppercase tracking-wider text-sky-900 dark:text-sky-400">Intelligent Routing Suggestion</h4>
+                        <p class="text-[11px] mt-0.5 opacity-90">Triage operations should balance layout distribution by routing new entries toward <strong class="font-bold underline"><?= htmlspecialchars($least_congested['name']); ?></strong> (<?= isset($least_congested['waiting_count']) ? $least_congested['waiting_count'] : 0; ?> waiting).</p>
+                    </div>
+                </div>
+                <a href="queue-monitor.php" class="bg-sky-600 dark:bg-sky-500 text-white font-bold text-[10px] tracking-wide uppercase px-3 py-1.5 rounded-lg hover:bg-sky-700 dark:hover:bg-sky-600 transition-all shrink-0">Manage Entries</a>
+            </div>
+        <?php endif; ?>
+
+        <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl shadow-sm overflow-hidden mb-8">
+            <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider">Functional Department Status Breakdown</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Real-time parameters for internal diagnostic throughput and clinical workflow speed</p>
+                </div>
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Live Tracking Sync</span>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse text-left">
                     <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>Clinic</th>
-                            <th>Waiting</th>
-                            <th>In Progress</th>
-                            <th>Capacity</th>
-                            <th>Congestion Level</th>
-                            <th>Action</th>
-                        </thead>
-                    <tbody>
-                        <?php foreach ($enhanced_clinics as $index => $clinic): 
-                            $total_load = isset($clinic['current_load']) ? $clinic['current_load'] : (isset($clinic['waiting_count']) ? $clinic['waiting_count'] : 0);
-                            $capacity = $clinic['capacity_per_hour'] ?? 10;
-                            $in_progress = $clinic['in_progress'] ?? 0;
-                            $waiting_count = isset($clinic['waiting_count']) ? $clinic['waiting_count'] : $total_load;
-                            $percentage = min(100, ($total_load / max($capacity, 1)) * 100);
-                            
-                            if ($percentage < 30) {
-                                $level = 'Low';
-                                $level_class = 'low';
-                            } elseif ($percentage < 60) {
-                                $level = 'Medium';
-                                $level_class = 'medium';
-                            } else {
-                                $level = 'High';
-                                $level_class = 'high';
-                            }
-                            
-                            // Special rank styling for top 3
-                            $rank_class = '';
-                            if ($index == 0) $rank_class = 'gold';
-                            elseif ($index == 1) $rank_class = 'silver';
-                            elseif ($index == 2) $rank_class = 'bronze';
-                        ?>
-                        <tr>
-                            <td>
-                                <span class="rank-badge <?php echo $rank_class; ?>">
-                                    <?php echo $index + 1; ?>
-                                </span>
-                             </td>
-                            <td>
-                                <strong><?php echo htmlspecialchars($clinic['name']); ?></strong>
-                                <?php if ($index == 0): ?>
-                                    <span style="color: var(--teal); font-size: 0.7rem; margin-left: 8px;">
-                                        <i class="fas fa-star"></i> Recommended
-                                    </span>
-                                <?php endif; ?>
-                             </td>
-                            <td>
-                                <span style="font-weight: 600; color: var(--dark-gray);">
-                                    <?php echo $waiting_count; ?>
-                                </span>
-                                <span style="color: var(--charcoal); opacity: 0.6;"> waiting</span>
-                             </td>
-                            <td><?php echo $in_progress; ?></td>
-                            <td><?php echo $total_load; ?>/<?php echo $capacity; ?></td>
-                            <td>
-                                <span class="congestion-level level-<?php echo $level_class; ?>">
-                                    <?php echo $level; ?>
-                                </span>
-                                <div class="progress-container">
-                                    <div class="progress-bar-bg">
-                                        <div class="progress-fill <?php echo $level_class; ?>" style="width: <?php echo $percentage; ?>%"></div>
-                                    </div>
-                                    <div class="progress-percentage"><?php echo round($percentage); ?>% capacity</div>
-                                </div>
-                             </td>
-                             <td>
-                                <a href="../staff/clinic-dashboard.php?clinic_id=<?php echo $clinic['id']; ?>" class="btn-view">
-                                    <i class="fas fa-eye"></i> View Queue
-                                </a>
-                             </td>
-                         </tr>
-                        <?php endforeach; ?>
+                        <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-300 dark:border-slate-700/80 text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                            <th class="py-3 px-4">Clinic Department Name</th>
+                            <th class="py-3 px-4 text-center">Pending Check-In</th>
+                            <th class="py-3 px-4 text-center">Active Treatment</th>
+                            <th class="py-3 px-4 text-center">Today Completed</th>
+                            <th class="py-3 px-4 text-center">Hourly Target Capacity</th>
+                            <th class="py-3 px-4">Congestion Index Threshold</th>
+                            <th class="py-3 px-4 text-right">System Metrics Context</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 dark:divide-slate-700/60 text-xs font-medium">
+                        <?php if (empty($detailed_stats)): ?>
+                            <tr>
+                                <td colspan="7" class="py-8 text-center text-slate-400 font-bold uppercase tracking-wider">No active departments or tracking counters configuration discovered.</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($detailed_stats as $row): 
+                                // Find match from QueueManager analytical response map
+                                $matched_analytics = [
+                                    'waiting_count' => $row['pending_count'],
+                                    'congestion_level' => 'Low'
+                                ];
+                                foreach ($clinic_stats as $cs) {
+                                    if (isset($cs['clinic_id']) && $cs['clinic_id'] == $row['id']) {
+                                        $matched_analytics = $cs;
+                                        break;
+                                    }
+                                }
+                                
+                                // Setup color dynamic badges safely
+                                $level = isset($matched_analytics['congestion_level']) ? $matched_analytics['congestion_level'] : 'Low';
+                                if ($level === 'Critical' || $level === 'High') {
+                                    $badge_styles = "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400";
+                                } elseif ($level === 'Moderate') {
+                                    $badge_styles = "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400";
+                                } else {
+                                    $badge_styles = "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+                                }
+
+                                // Define dot animation class parameters
+                                if ($level === 'Critical') {
+                                    $dot_color = 'bg-rose-500 animate-ping';
+                                } elseif ($level === 'High') {
+                                    $dot_color = 'bg-rose-500';
+                                } elseif ($level === 'Moderate') {
+                                    $dot_color = 'bg-amber-500';
+                                } else {
+                                    $dot_color = 'bg-emerald-500';
+                                }
+                            ?>
+                                <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                                    <td class="py-3.5 px-4 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                        <div class="w-2 h-2 rounded-full <?= $dot_color; ?>"></div>
+                                        <span><?= htmlspecialchars($row['name']); ?></span>
+                                    </td>
+                                    <td class="py-3.5 px-4 text-center font-mono font-bold text-slate-700 dark:text-slate-300"><?= number_format($row['pending_count']); ?></td>
+                                    <td class="py-3.5 px-4 text-center font-mono font-bold text-sky-600 dark:text-sky-400"><?= number_format($row['in_progress_count']); ?></td>
+                                    <td class="py-3.5 px-4 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400"><?= number_format($row['completed_count']); ?></td>
+                                    <td class="py-3.5 px-4 text-center font-mono text-slate-500 dark:text-slate-400"><?= number_format($row['capacity_per_hour']); ?>/hr</td>
+                                    <td class="py-3.5 px-4">
+                                        <span class="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide <?= $badge_styles ?>">
+                                            <?= htmlspecialchars($level); ?> Load
+                                        </span>
+                                    </td>
+                                    <td class="py-3.5 px-4 text-right whitespace-nowrap">
+                                        <a href="queue-monitor.php" class="inline-flex items-center gap-1 text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:underline uppercase tracking-wide">
+                                            <span>Inspect Queue</span>
+                                            <i class="fas fa-chevron-right text-[8px]"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
-    <!-- Congestion Legend -->
-    <div style="margin-top: 24px; display: flex; gap: 24px; flex-wrap: wrap; justify-content: center;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 16px; height: 16px; background: var(--soft-green); border-radius: 4px;"></div>
-            <span style="font-size: 0.75rem; color: var(--charcoal);">Low Congestion (0-30%)</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 16px; height: 16px; background: var(--warm-yellow); border-radius: 4px;"></div>
-            <span style="font-size: 0.75rem; color: var(--charcoal);">Medium Congestion (31-60%)</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 16px; height: 16px; background: var(--light-coral); border-radius: 4px;"></div>
-            <span style="font-size: 0.75rem; color: var(--charcoal);">High Congestion (61-100%)</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="fas fa-star" style="color: var(--teal); font-size: 0.8rem;"></i>
-            <span style="font-size: 0.75rem; color: var(--charcoal);">Recommended Clinic</span>
-        </div>
-    </div>
-</main>
-
-<script>
-    // Date and Time Display
-    function updateDateTime() {
-        const now = new Date();
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', options);
-        document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    }
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
-    
-    // ============================================
-    // AUTO-LOGOUT AFTER INACTIVITY
-    // ============================================
-
-    // Timeout in milliseconds (30 minutes = 30 * 60 * 1000)
-    const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
-    let inactivityTimer;
-    let warningTimer;
-    let warningShown = false;
-
-    function resetInactivityTimer() {
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        if (warningTimer) clearTimeout(warningTimer);
-        warningShown = false;
-        hideWarningModal();
-        
-        inactivityTimer = setTimeout(logoutUser, INACTIVITY_TIMEOUT);
-        warningTimer = setTimeout(showWarningModal, INACTIVITY_TIMEOUT - (2 * 60 * 1000));
-        sendHeartbeat();
-    }
-
-    function sendHeartbeat() {
-        fetch('heartbeat.php', {
-            method: 'POST',
-            credentials: 'same-origin'
-        }).catch(err => console.log('Heartbeat failed:', err));
-    }
-
-    function logoutUser() {
-        window.location.href = '../logout.php';
-    }
-
-    function showWarningModal() {
-        if (warningShown) return;
-        warningShown = true;
-        
-        const modal = document.createElement('div');
-        modal.id = 'sessionWarningModal';
-        modal.innerHTML = `
-            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                        background: rgba(0,0,0,0.5); z-index: 10000; display: flex; 
-                        align-items: center; justify-content: center;">
-                <div style="background: white; padding: 30px; border-radius: 16px; text-align: center; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
-                    <i class="fas fa-hourglass-half" style="font-size: 48px; color: #FFB84D; margin-bottom: 20px;"></i>
-                    <h3>Session About to Expire</h3>
-                    <p>You will be logged out due to inactivity.</p>
-                    <p id="countdownText" style="font-size: 24px; font-weight: bold; margin: 15px 0;">2:00</p>
-                    <button onclick="keepSessionAlive()" style="background: #009688; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                        <i class="fas fa-mouse-pointer"></i> Stay Logged In
-                    </button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        
-        let secondsLeft = 120;
-        const countdownElement = document.getElementById('countdownText');
-        const countdownInterval = setInterval(function() {
-            secondsLeft--;
-            const minutes = Math.floor(secondsLeft / 60);
-            const seconds = secondsLeft % 60;
-            if (countdownElement) {
-                countdownElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-            }
-            if (secondsLeft <= 0) clearInterval(countdownInterval);
-        }, 1000);
-    }
-
-    function keepSessionAlive() {
-        hideWarningModal();
-        fetch('heartbeat.php', {
-            method: 'POST',
-            credentials: 'same-origin'
-        }).then(function() {
-            resetInactivityTimer();
-        }).catch(function(err) {
-            resetInactivityTimer();
-        });
-    }
-
-    function hideWarningModal() {
-        const modal = document.getElementById('sessionWarningModal');
-        if (modal) modal.remove();
-    }
-
-    // Track user activity
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'keydown'];
-    events.forEach(function(event) {
-        document.addEventListener(event, resetInactivityTimer, false);
-    });
-
-    resetInactivityTimer();
-
-    setInterval(function() {
-        if (!warningShown) {
-            sendHeartbeat();
+    <script>
+        // Real-Time System Clock Script
+        function updateDateTime() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', options);
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         }
-    }, 5 * 60 * 1000);
-</script>
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
 
+        // Header Profile Context Dropdown
+        const profileMenuBtn = document.getElementById('profileMenuBtn');
+        const profileDropdown = document.getElementById('profileDropdown');
+        if (profileMenuBtn && profileDropdown) {
+            profileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileDropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', () => profileDropdown.classList.add('hidden'));
+        }
+
+        // Mobile Responsive Navigation Control Hooks
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        if (mobileMenuBtn && sidebar) {
+            mobileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sidebar.classList.toggle('-translate-x-full');
+            });
+        }
+        document.addEventListener('click', (e) => {
+            if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+                if (mobileMenuBtn && !mobileMenuBtn.contains(e.target)) {
+                    sidebar.classList.add('-translate-x-full');
+                }
+            }
+        });
+
+        // Activity Inactivity Automatic Timeout Check System
+        const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
+        let inactivityTimer;
+        
+        function resetInactivityTimer() {
+            if (inactivityTimer) clearTimeout(inactivityTimer);
+            inactivityTimer = setTimeout(function() {
+                window.location.href = '../logout.php';
+            }, INACTIVITY_TIMEOUT);
+        }
+        
+        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'keydown'];
+        events.forEach(event => document.addEventListener(event, resetInactivityTimer, false));
+        resetInactivityTimer();
+
+        // Dark/Light System Visual Engine State Context Management
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const themeToggleIcon = document.getElementById('themeToggleIcon');
+        
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark'); 
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
+        } else {
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-base text-slate-500';
+        }
+        
+        if(themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', () => {
+                if (document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.remove('dark'); 
+                    localStorage.setItem('theme', 'light'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-base text-slate-500';
+                } else {
+                    document.documentElement.classList.add('dark'); 
+                    localStorage.setItem('theme', 'dark'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
+                }
+            });
+        }
+
+        // Automatic Page Reload Routine to pull the freshest queue parameters every 60 seconds
+        setInterval(function() {
+            window.location.reload();
+        }, 60000);
+    </script>
 </body>
 </html>

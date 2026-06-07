@@ -10,14 +10,11 @@ session_start();
 // ============================================
 // AUTHENTICATION & ROLE-BASED ACCESS CONTROL
 // ============================================
-
-// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../index.php');
     exit();
 }
 
-// Allowed roles for staff pages
 $allowed_staff_roles = ['admin', 'doctor', 'nurse', 'technician', 'staff'];
 
 if (!in_array($_SESSION['role'], $allowed_staff_roles)) {
@@ -33,42 +30,47 @@ $db = $database->getConnection();
 $queueManager = new QueueManager($db);
 
 // ============================================
-// SESSION TIMEOUT CHECK (After $db exists)
+// SESSION TIMEOUT CHECK
 // ============================================
 require_once dirname(__DIR__) . '/includes/SessionManager.php';
 $sessionManager = new SessionManager($db);
 if (!$sessionManager->checkTimeout()) {
-    exit(); // Already redirected to login
+    exit();
 }
 $sessionManager->logActivity('Viewed registration page');
 
-// Get clinics for dropdown
-$query = "SELECT * FROM clinics WHERE is_active = 1 ORDER BY name";
+// ============================================
+// LIVE CLINIC METRICS DATA INGESTION
+// ============================================
+$query = "SELECT 
+            c.*,
+            COUNT(CASE WHEN q.status IN ('pending', 'waiting', 'called') AND DATE(q.registered_at) = CURDATE() THEN 1 END) as live_waiting_count
+          FROM clinics c
+          LEFT JOIN queue_entries q ON c.id = q.clinic_id
+          WHERE c.is_active = 1
+          GROUP BY c.id, c.name, c.capacity_per_hour
+          ORDER BY c.name";
 $clinics = $db->query($query)->fetchAll(PDO::FETCH_ASSOC);
 
 // Handle form submission
 $success_message = '';
 $error_message = '';
-$last_registered_patient = null;
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
     
-    // Generate Medical Record Number
-    $mrn = 'MRN' . date('Ymd') . rand(100, 999);
-    
-    // Get form data
+    $mrn = trim($_POST['mrn']);
     $first_name = trim($_POST['first_name']);
     $last_name = trim($_POST['last_name']);
     $dob = $_POST['dob'];
     $gender = $_POST['gender'];
-    $contact = trim($_POST['contact'] ?? '');
+    $contact = trim($_POST['contact_number'] ?? '');
     $address = trim($_POST['address'] ?? '');
     $patient_type = $_POST['patient_type'];
+    
     $is_pwd = isset($_POST['is_pwd']) ? 1 : 0;
     $is_senior = isset($_POST['is_senior']) ? 1 : 0;
     $is_pregnant = isset($_POST['is_pregnant']) ? 1 : 0;
     
-    // Insert patient data matching the exact schema configurations
     $query = "INSERT INTO patients 
               (mrn, first_name, last_name, date_of_birth, gender, 
                contact_number, address, patient_type, is_pwd, is_senior, is_pregnant) 
@@ -92,370 +94,332 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
     if ($stmt->execute()) {
         $patient_id = $db->lastInsertId();
         
-        // Add to queue if clinic selected
-        $queue_result = null;
         if (isset($_POST['clinic_id']) && !empty($_POST['clinic_id'])) {
             $clinic_id = $_POST['clinic_id'];
             $appointment_time = !empty($_POST['appointment_time']) ? $_POST['appointment_time'] : null;
-            $queue_result = $queueManager->addToQueue($patient_id, $clinic_id, $appointment_time);
+            $queueManager->addToQueue($patient_id, $clinic_id, $appointment_time);
         }
         
-        // Store last registered patient for token/print actions
-        $last_registered_patient = [
-            'patient_id' => $patient_id,
-            'mrn' => $mrn,
-            'queue_number' => $queue_result['queue_number'] ?? null,
-            'transaction_token' => $queue_result['transaction_token'] ?? null
-        ];
-        
-        // If logged in as an administrator, safely push them back to the unaltered table ledger view
         if ($_SESSION['role'] === 'admin') {
-            header('Location: ../admin/patients.php?msg=' . urlencode("Patient profiles dynamically updated. New MRN issued: " . $mrn));
+            header('Location: ../admin/patients.php?msg=' . urlencode("Successfully registered patient. MRN: " . $mrn));
             exit();
         }
 
-        // Standard staff success view message context
-        $success_message = "Patient registered successfully!";
-        $success_message .= "<br><strong>MRN:</strong> " . $mrn;
-        if ($queue_result && $queue_result['success']) {
-            $success_message .= "<br><strong>Queue Number:</strong> " . $queue_result['queue_number'];
-            $success_message .= "<br><strong>Transaction Token:</strong> <code>" . $queue_result['transaction_token'] . "</code>";
-        }
+        $success_message = "Patient registered successfully! MRN: " . $mrn;
     } else {
-        $error_message = "Error registering patient. Please try again.";
+        $error_message = "Error registering patient. Please verify input data values.";
     }
 }
-
-// Get today's queue stats for display
-$query = "SELECT 
-            COUNT(*) as total_today,
-            SUM(CASE WHEN priority_level = 'PR1' THEN 1 ELSE 0 END) as pr1_count,
-            SUM(CASE WHEN priority_level = 'PR2' THEN 1 ELSE 0 END) as pr2_count,
-            SUM(CASE WHEN priority_level = 'PR3' THEN 1 ELSE 0 END) as pr3_count
-          FROM queue_entries 
-          WHERE DATE(registered_at) = CURDATE()";
-$stats = $db->query($query)->fetch(PDO::FETCH_ASSOC);
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patient Registration | Staff | Camp Evangelista Hospital</title>
+    <title>Patient Registration | 4ID Station Hospital</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-    <style>
-        :root {
-            --soft-blue: #4A90E2;
-            --soft-blue-dark: #3A7BC8;
-            --soft-blue-light: #E7F3FB;
-            --teal: #009688;
-            --teal-dark: #00796B;
-            --soft-green: #A4D1B1;
-            --warm-yellow: #FFB84D;
-            --light-coral: #FF6F61;
-            --white: #FFFFFF;
-            --light-gray: #F2F2F2;
-            --dark-gray: #212121;
-            --charcoal: #333333;
-            --border-light: #E5E9F0;
-            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    }
+                }
+            }
         }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--light-gray);
-            color: var(--charcoal);
-            line-height: 1.5;
-        }
-
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 280px;
-            height: 100vh;
-            background: var(--white);
-            box-shadow: var(--shadow-md);
-            z-index: 1000;
-            overflow-y: auto;
-            border-right: 1px solid var(--border-light);
-        }
-
-        .sidebar-logo {
-            padding: 28px 24px;
-            border-bottom: 1px solid var(--border-light);
-            margin-bottom: 24px;
-        }
-
-        .sidebar-logo h2 {
-            color: var(--soft-blue);
-            font-size: 1.1rem;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-            margin-bottom: 4px;
-        }
-
-        .sidebar-logo p {
-            color: var(--charcoal);
-            font-size: 0.7rem;
-            opacity: 0.7;
-        }
-
-        .nav-menu { list-style: none; padding: 0 16px; }
-        .nav-item { margin-bottom: 4px; }
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            border-radius: 12px;
-            color: var(--charcoal);
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .nav-link i { width: 22px; color: var(--soft-blue); font-size: 1.1rem; }
-        .nav-link:hover { background: var(--soft-blue-light); color: var(--soft-blue); }
-        .nav-link.active { background: var(--soft-blue); color: white; }
-        .nav-link.active i { color: white; }
-
-        .main-content { margin-left: 280px; padding: 28px 36px; min-height: 100vh; }
-        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--border-light); }
-        .page-title h1 { color: var(--dark-gray); font-size: 1.75rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 4px; }
-        .page-title p { color: var(--charcoal); font-size: 0.85rem; opacity: 0.7; }
-        
-        .alert { padding: 16px; border-radius: 12px; margin-bottom: 24px; font-size: 0.95rem; display: flex; align-items: flex-start; gap: 12px; }
-        .alert-success { background-color: #E8F5E9; border: 1px solid #C8E6C9; color: #2E7D32; }
-        .alert-error { background-color: #FFEBEE; border: 1px solid #FFCDD2; color: #C62828; }
-
-        .form-panel { background: var(--white); border-radius: 16px; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 24px; }
-        .panel-header { padding: 20px 24px; border-bottom: 1px solid var(--border-light); background: var(--white); font-weight: 600; color: var(--dark-gray); display: flex; align-items: center; gap: 10px; }
-        .panel-body { padding: 24px; }
-        
-        .form-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-bottom: 20px; }
-        @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } }
-        
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-group label { font-size: 0.85rem; font-weight: 600; color: var(--charcoal); }
-        .form-control { padding: 12px 16px; border: 1px solid var(--border-light); border-radius: 10px; font-size: 0.95rem; background: #F8FAFC; transition: all 0.2s; }
-        .form-control:focus { outline: none; border-color: var(--soft-blue); background: var(--white); box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.15); }
-        
-        .checkbox-group { display: flex; gap: 20px; background: #F8FAFC; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border-light); height: 100%; align-items: center; }
-        .checkbox-group label { display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; font-size: 0.9rem; }
-        .checkbox-group input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--teal); }
-
-        .form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 12px; border-top: 1px solid var(--border-light); padding-top: 24px; }
-        
-        .btn { padding: 12px 24px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; border: none; text-decoration: none; }
-        .btn-primary { background: var(--teal); color: white; }
-        .btn-primary:hover { background: var(--teal-dark); }
-        .btn-secondary { background: #F1F5F9; color: var(--charcoal); border: 1px solid var(--border-light); }
-        .btn-secondary:hover { background: #E2E8F0; }
-
-        .priority-preview { background: var(--soft-blue-light); padding: 16px; border-radius: 12px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(74,144,226,0.2); }
-        .priority-preview span { font-weight: 600; font-size: 0.9rem; }
-        .priority-badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; color: white; text-transform: uppercase; letter-spacing: 0.5px; }
-        .pr1 { background: var(--light-coral); }
-        .pr2 { background: var(--warm-yellow); color: #5C3E00; }
-        .pr3 { background: var(--soft-green); color: #2E5A36; }
-        .hidden { display: none !important; }
-    </style>
+    </script>
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-[#111827] text-slate-800 dark:text-slate-100 font-sans antialiased min-h-full transition-colors duration-200">
 
-<aside class="sidebar">
-    <div class="sidebar-logo">
-        <h2>4ID Station Hospital</h2>
-        <p>Camp Evangelista</p>
-    </div>
-    <ul class="nav-menu">
-        <?php if ($_SESSION['role'] === 'admin'): ?>
-            <li class="nav-item"><a href="../admin/patients.php" class="nav-link"><i class="fas fa-arrow-left"></i> <span>Back to Directory</span></a></li>
-        <?php endif; ?>
-        <li class="nav-item"><a href="registration.php" class="nav-link active"><i class="fas fa-user-plus"></i> <span>Register Patient</span></a></li>
-    </ul>
-</aside>
-
-<main class="main-content">
-    <div class="top-bar">
-        <div class="page-title">
-            <h1>Patient Intake Registration</h1>
-            <p>Onboard demographic data directly to the medical tracking engine</p>
-        </div>
+    <aside id="sidebar" class="fixed top-0 left-0 h-screen bg-white dark:bg-[#1f2937] border-r border-slate-300/90 dark:border-slate-700/80 shadow-xl md:shadow-none z-[1000] flex flex-col justify-between overflow-x-hidden transition-all duration-300 ease-in-out group/sidebar -translate-x-full md:translate-x-0 w-[270px] md:w-[80px] md:hover:w-[270px]">
         <div>
-            <?php if ($_SESSION['role'] === 'admin'): ?>
-                <a href="../admin/patients.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Return to Directory</a>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <?php if (!empty($success_message)): ?>
-        <div class="alert alert-success">
-            <i class="fas fa-check-circle" style="font-size: 1.25rem; margin-top: 2px;"></i>
-            <div><?= $success_message; ?></div>
-        </div>
-    <?php endif; ?>
-
-    <?php if (!empty($error_message)): ?>
-        <div class="alert alert-error">
-            <i class="fas fa-exclamation-circle" style="font-size: 1.25rem; margin-top: 2px;"></i>
-            <div><?= $error_message; ?></div>
-        </div>
-    <?php endif; ?>
-
-    <div class="form-panel">
-        <div class="panel-header"><i class="fas fa-id-card"></i> Clinical Profile Demographics</div>
-        <div class="panel-body">
-            <form method="POST" action="">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>First Name *</label>
-                        <input type="text" name="first_name" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Last Name *</label>
-                        <input type="text" name="last_name" class="form-control" required>
-                    </div>
+            <div class="p-4 border-b border-slate-300/90 dark:border-slate-700/60 mb-6 flex flex-col items-center justify-center min-h-[150px]">
+                <div class="hidden md:flex md:group-hover/sidebar:hidden flex-col items-center justify-center font-extrabold text-xl tracking-wider text-sky-600 dark:text-sky-400 leading-tight select-none">
+                    <span>C</span><span>E</span><span>S</span><span>H</span>
                 </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Date of Birth *</label>
-                        <input type="date" name="dob" id="dob" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Gender *</label>
-                        <select name="gender" class="form-control" required>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                        </select>
-                    </div>
+                <div class="flex md:hidden md:group-hover/sidebar:flex flex-col items-center animate-[fadeIn_0.2s_ease-in-out]">
+                    <h2 class="text-slate-800 dark:text-slate-100 text-sm font-extrabold tracking-tight text-center whitespace-nowrap">4ID Station Hospital</h2>
+                    <p class="text-slate-400 dark:text-slate-400 text-[0.65rem] font-bold uppercase tracking-widest text-center whitespace-nowrap mt-0.5">Camp Evangelista</p>
                 </div>
+            </div>
+            
+            <nav class="px-3 md:group-hover/sidebar:px-4 transition-all duration-200">
+                <ul class="list-none p-0 space-y-1">
+                    <?php if ($_SESSION['role'] === 'admin'): ?>
+                    <li>
+                        <a href="../admin/patients.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-3 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-arrow-left text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-[0.85rem] tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Patient Directory</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                    <li>
+                        <a href="registration.php" class="flex items-center rounded-xl font-semibold transition-all duration-150 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-l-4 border-sky-500 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-3">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-user-plus text-base"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-[0.85rem] tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Register Patient</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Contact Number</label>
-                        <input type="tel" name="contact" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label>Residential Address</label>
-                        <input type="text" name="address" class="form-control">
-                    </div>
+    <main class="min-h-screen ml-0 md:ml-[80px] p-5 md:p-8 transition-all duration-300">
+        
+        <header class="flex flex-col sm:flex-row justify-between sm:items-center mb-8 pb-5 border-b border-slate-300/90 dark:border-slate-700/80 gap-4">
+            <div class="flex items-center gap-4">
+                <button id="mobileMenuBtn" class="md:hidden p-2 text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1f2937] border border-slate-300 rounded-xl">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <div>
+                    <h1 class="text-slate-900 dark:text-white text-2xl md:text-3xl font-extrabold tracking-tight mb-0.5">New Patient Setup</h1>
+                    <p class="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">Configure internal medical profiles and record tracking tags</p>
                 </div>
+            </div>
+            
+            <div class="flex items-center gap-3 md:gap-5">
+                <button id="themeToggleBtn" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-[#1f2937] text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl hover:text-sky-500 transition-all shadow-sm" title="Toggle Visual Mode">
+                    <i id="themeToggleIcon" class="fas fa-moon text-base"></i>
+                </button>
+                <?php if ($_SESSION['role'] === 'admin'): ?>
+                    <a href="../admin/patients.php" class="inline-flex items-center justify-center px-4 py-2.5 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm"><i class="fas fa-arrow-left mr-2"></i> Back</a>
+                <?php endif; ?>
+            </div>
+        </header>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Patient Scope Type *</label>
-                        <select name="patient_type" class="form-control" required id="patientType">
-                            <option value="">-- Choose Designation --</option>
-                            <option value="Dependent">Dependent</option>
-                            <option value="Military Personnel">Military Personnel</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Triage Priority Qualifiers</label>
-                        <div class="checkbox-group">
-                            <label><input type="checkbox" name="is_pwd" id="isPwd" value="1"> PWD</label>
-                            <label><input type="checkbox" name="is_senior" id="isSenior" value="1"> Senior</label>
-                            <label><input type="checkbox" name="is_pregnant" id="isPregnant" value="1"> Pregnant</label>
+        <?php if (!empty($success_message)): ?>
+            <div class="alert p-4 mb-6 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-between shadow-sm">
+                <div class="flex items-center"><i class="fas fa-check-circle mr-3 text-base"></i> <span class="text-xs font-bold uppercase tracking-wide"><?= htmlspecialchars($success_message) ?></span></div>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-emerald-500"><i class="fas fa-times"></i></button>
+            </div>
+        <?php endif; ?>
+        <?php if (!empty($error_message)): ?>
+            <div class="alert p-4 mb-6 bg-rose-50 dark:bg-rose-500/10 border border-rose-300 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-2xl flex items-center justify-between shadow-sm">
+                <div class="flex items-center"><i class="fas fa-exclamation-triangle mr-3 text-base"></i> <span class="text-xs font-bold uppercase tracking-wide"><?= htmlspecialchars($error_message) ?></span></div>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-rose-500"><i class="fas fa-times"></i></button>
+            </div>
+        <?php endif; ?>
+
+        <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-2xl shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm tracking-wide uppercase">
+                <i class="fas fa-user-edit text-sky-500 text-base"></i> Profile Demographic Configuration
+            </div>
+            
+            <div class="p-6 md:p-8">
+                <form method="POST" action="">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Medical Record Number (MRN) *</label>
+                            <input type="text" name="mrn" class="w-full px-4 py-3 bg-slate-100 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-sky-600 dark:text-sky-400 font-mono font-bold rounded-xl focus:outline-none cursor-not-allowed select-all" value="MRN<?= date('Ymd') . rand(100, 999); ?>" readonly required>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Patient Scope Type Classification *</label>
+                            <select name="patient_type" id="patientType" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                                <option value="">-- Select Designation --</option>
+                                <option value="Military Personnel">Military Personnel</option>
+                                <option value="Dependent">Dependent</option>
+                            </select>
                         </div>
                     </div>
-                </div>
 
-                <div id="priorityPreview" class="priority-preview hidden">
-                    <span style="color: var(--dark-gray);">Evaluated Priority Classification Level:</span>
-                    <div>
-                        <span id="priorityBadge" class="priority-badge pr3">PR3</span> 
-                        <span id="priorityDescription" style="margin-left: 8px; color: var(--charcoal); font-size: 0.85rem;">Regular Status</span>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">First Name *</label>
+                            <input type="text" name="first_name" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Last Name *</label>
+                            <input type="text" name="last_name" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Clinic Assignment Target Area</label>
-                        <select name="clinic_id" class="form-control">
-                            <option value="">-- Save Record to Profile Registry Only --</option>
-                            <?php foreach ($clinics as $clinic): ?>
-                                <option value="<?= $clinic['id']; ?>"><?= htmlspecialchars($clinic['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Gender Scope *</label>
+                            <select name="gender" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                                <option value="">-- Select Gender --</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date of Birth *</label>
+                            <input type="date" name="dob" id="dob" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Appointment Queue Time Target</label>
-                        <input type="datetime-local" name="appointment_time" class="form-control">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Contact Phone Number</label>
+                            <input type="tel" name="contact_number" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Home Address</label>
+                            <input type="text" name="address" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all">
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-actions">
-                    <button type="reset" class="btn btn-secondary">Reset Fields</button>
-                    <button type="submit" name="register_patient" class="btn btn-primary"><i class="fas fa-save"></i> Save System Profile Record</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</main>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Triage Qualifiers</label>
+                            <div class="flex items-center h-full gap-6 px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 rounded-xl">
+                                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer select-none"><input type="checkbox" name="is_pwd" id="isPwd" value="1" class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 accent-sky-500"> PWD</label>
+                                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer select-none"><input type="checkbox" name="is_senior" id="isSenior" value="1" class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 accent-sky-500"> Senior</label>
+                                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer select-none"><input type="checkbox" name="is_pregnant" id="isPregnant" value="1" class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 accent-sky-500"> Pregnant</label>
+                            </div>
+                        </div>
+                    </div>
 
-<script>
-    function updatePriorityPreview() {
-        const type = document.getElementById('patientType').value;
-        const isPwd = document.getElementById('isPwd').checked;
-        const isSenior = document.getElementById('isSenior').checked;
-        const isPregnant = document.getElementById('isPregnant').checked;
-        
-        let priority = 'PR3'; 
-        let desc = 'Regular Queue Processing'; 
-        let badgeClass = 'pr3';
-        
-        if (type === 'Military Personnel') { 
-            priority = 'PR1'; 
-            desc = 'Active Service Personnel Priority'; 
-            badgeClass = 'pr1'; 
-        } else if (isPwd || isSenior || isPregnant) { 
-            priority = 'PR2'; 
-            desc = 'Special Privilege Priority Allocation'; 
-            badgeClass = 'pr2'; 
+                    <div id="priorityPreview" class="hidden items-center justify-between p-4 mb-6 bg-sky-50 dark:bg-sky-500/10 border border-sky-300 dark:border-sky-500/20 rounded-xl transition-all">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Evaluated Priority Classification Level:</span>
+                        <div class="flex items-center gap-3">
+                            <span id="priorityBadge" class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider text-white">PR3</span>
+                            <span id="priorityDescription" class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300"></span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Primary Clinic Allocation Unit</label>
+                            <select name="clinic_id" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 text-sm">
+                                <option value="">-- Registry Asset Record Entry Only --</option>
+                                <?php foreach ($clinics as $clinic): 
+                                    $load_count = (int)$clinic['live_waiting_count'];
+                                ?>
+                                    <option value="<?= $clinic['id']; ?>">
+                                        <?= htmlspecialchars($clinic['name']); ?> (<?= $load_count; ?> waiting)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Target Queue Slot/Time</label>
+                            <input type="datetime-local" name="appointment_time" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 text-sm">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-700">
+                        <button type="reset" class="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm">Clear Inputs</button>
+                        <button type="submit" name="register_patient" class="inline-flex items-center justify-center px-6 py-2.5 bg-sky-600 dark:bg-sky-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-sky-700 dark:hover:bg-sky-600 transition-all shadow-sm"><i class="fas fa-save mr-2 text-sm"></i> Commit Registration</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Live Priority Triage Classifier Update Engine
+        function updatePriorityPreview() {
+            const type = document.getElementById('patientType').value;
+            const isPwd = document.getElementById('isPwd').checked;
+            const isSenior = document.getElementById('isSenior').checked;
+            const isPregnant = document.getElementById('isPregnant').checked;
+            
+            let priority = 'PR3'; 
+            let desc = 'Standard Processing Queue'; 
+            let badgeClass = ' bg-sky-500 dark:bg-sky-500/20 text-sky-600 dark:text-sky-400';
+            
+            if (type === 'Military Personnel') { 
+                priority = 'PR1'; 
+                desc = 'Active Troop Service Priority'; 
+                badgeClass = ' bg-emerald-500 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'; 
+            } else if (isPwd || isSenior || isPregnant) { 
+                priority = 'PR2'; 
+                desc = 'Special Privilege Allocation'; 
+                badgeClass = ' bg-amber-500 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400'; 
+            }
+            
+            const preview = document.getElementById('priorityPreview');
+            if (type || isPwd || isSenior || isPregnant) {
+                preview.classList.remove('hidden');
+                preview.classList.add('flex');
+                const badge = document.getElementById('priorityBadge');
+                badge.textContent = priority;
+                badge.className = 'px-2.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider' + badgeClass;
+                document.getElementById('priorityDescription').textContent = desc;
+            } else {
+                preview.classList.remove('flex');
+                preview.classList.add('hidden');
+            }
         }
-        
-        const preview = document.getElementById('priorityPreview');
-        if (type || isPwd || isSenior || isPregnant) {
-            preview.classList.remove('hidden');
-            const badge = document.getElementById('priorityBadge');
-            badge.textContent = priority;
-            badge.className = 'priority-badge' + badgeClass;
-            document.getElementById('priorityDescription').textContent = desc;
-        } else { 
-            preview.classList.add('hidden'); 
+
+        document.getElementById('patientType').addEventListener('change', updatePriorityPreview);
+        document.getElementById('isPwd').addEventListener('change', updatePriorityPreview);
+        document.getElementById('isSenior').addEventListener('change', updatePriorityPreview);
+        document.getElementById('isPregnant').addEventListener('change', updatePriorityPreview);
+
+        // Auto Senior Flag Trigger by DOB Configuration
+        document.getElementById('dob')?.addEventListener('change', function() {
+            const dob = new Date(this.value);
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            if (today.getMonth() < dob.getMonth() || (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) age--;
+            if (age >= 60) {
+                document.getElementById('isSenior').checked = true;
+                updatePriorityPreview();
+            }
+        });
+
+        // Theme Persistent Logic Core
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const themeToggleIcon = document.getElementById('themeToggleIcon');
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark'); 
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
         }
-    }
-    
-    document.getElementById('patientType').addEventListener('change', updatePriorityPreview);
-    document.getElementById('isPwd').addEventListener('change', updatePriorityPreview);
-    document.getElementById('isSenior').addEventListener('change', updatePriorityPreview);
-    document.getElementById('isPregnant').addEventListener('change', updatePriorityPreview);
-    
-    document.getElementById('dob')?.addEventListener('change', function() {
-        const dob = new Date(this.value);
-        const today = new Date();
-        let age = today.getFullYear() - dob.getFullYear();
-        const monthDiff = today.getMonth() - dob.getMonth();
-        
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-            age--;
+        if(themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', () => {
+                if (document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.remove('dark'); 
+                    localStorage.setItem('theme', 'light'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-base';
+                } else {
+                    document.documentElement.classList.add('dark'); 
+                    localStorage.setItem('theme', 'dark'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
+                }
+            });
         }
-        if (age >= 60 && !document.getElementById('isSenior').checked) {
-            document.getElementById('isSenior').checked = true;
-            updatePriorityPreview();
+
+        // Sidebar Responsive Toggle Utility
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        if (mobileMenuBtn && sidebar) {
+            mobileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sidebar.classList.toggle('-translate-x-full');
+            });
         }
-    });
-</script>
+        document.addEventListener('click', (e) => {
+            if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+                if (mobileMenuBtn && !mobileMenuBtn.contains(e.target)) {
+                    sidebar.classList.add('-translate-x-full');
+                }
+            }
+        });
+
+        // Dismiss Alerts automatically
+        setTimeout(() => {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.style.transition = 'all 0.4s ease-in-out';
+                alert.style.opacity = '0';
+                alert.style.transform = 'translateY(-10px)';
+                setTimeout(() => alert.remove(), 400);
+            });
+        }, 5000);
+    </script>
 </body>
 </html>
