@@ -61,7 +61,6 @@ foreach ($clinic_stats as $stat) {
     $total_pending += isset($stat['waiting_count']) ? $stat['waiting_count'] : 0;
     $total_completed += isset($stat['completed_count']) ? $stat['completed_count'] : 0;
     
-    // Fix: Use a safe isset check to prevent the undefined array key error
     if (isset($stat['congestion_level'])) {
         if ($stat['congestion_level'] === 'High' || $stat['congestion_level'] === 'Critical') {
             $high_congestion_count++;
@@ -82,11 +81,13 @@ $total_active_queue = $total_pending + $total_in_progress;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinic Congestion Monitor | 4ID Station Hospital | Camp Evangelista</title>
     
+    <!-- Consistent Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
+    <!-- Tailwind CSS Engine -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -104,19 +105,22 @@ $total_active_queue = $total_pending + $total_in_progress;
 </head>
 <body class="bg-slate-50 dark:bg-[#111827] text-slate-800 dark:text-slate-100 font-sans antialiased min-h-full transition-colors duration-200">
 
+    <!-- Hover-Expandable Navigation Sidebar Drawer Frame -->
     <aside id="sidebar" class="fixed top-0 left-0 h-screen bg-white dark:bg-[#1f2937] border-r border-slate-300/90 dark:border-slate-700/80 shadow-xl md:shadow-none z-[1000] flex flex-col justify-between overflow-x-hidden transition-all duration-300 ease-in-out group/sidebar -translate-x-full md:translate-x-0 w-[260px] md:w-[80px] md:hover:w-[260px]">
         <div>
+            <!-- Sidebar Header Layout with Logo Branding -->
             <div class="p-4 border-b border-slate-300/90 dark:border-slate-700/60 mb-5 flex flex-col items-center justify-center min-h-[160px]">
-                <div class="hidden md:flex md:group-hover/sidebar:hidden flex-col items-center justify-center font-extrabold text-2xl tracking-wider text-sky-600 dark:text-sky-400 leading-tight select-none animate-[fadeIn_0.15s_ease-in-out]">
+                <div class="hidden md:flex md:group-hover/sidebar:hidden flex-col items-center justify-center font-extrabold text-2xl tracking-wider text-sky-600 dark:text-sky-400 leading-tight select-none">
                     <span>C</span><span>E</span><span>S</span><span>H</span>
                 </div>
-                <div class="flex md:hidden md:group-hover/sidebar:flex flex-col items-center animate-[fadeIn_0.2s_ease-in-out]">
-                    <img src="../assets/images/logo.png" alt="CESH Logo" class="w-21 h-21 object-contain rounded-xl mb-2.5">
+                <div class="flex md:hidden md:group-hover/sidebar:flex flex-col items-center">
+                    <img src="../assets/images/logo.png" alt="CESH Logo" class="w-21 h-21 object-contain rounded-xl mb-2.5" onerror="this.style.display='none'">
                     <h2 class="text-slate-800 dark:text-slate-100 text-sm font-extrabold tracking-tight text-center whitespace-nowrap">4ID Station Hospital</h2>
                     <p class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest text-center whitespace-nowrap mt-1">Camp Evangelista</p>
                 </div>
             </div>
             
+            <!-- Fully Synchronized Navigation Drawer Links List -->
             <nav class="px-3 md:group-hover/sidebar:px-4 transition-all duration-200">
                 <ul class="list-none p-0 space-y-1.5">
                     <li>
@@ -180,8 +184,10 @@ $total_active_queue = $total_pending + $total_in_progress;
         </div>
     </aside>
 
+    <!-- Main Content Workspace Framework Area -->
     <main class="min-h-screen ml-0 md:ml-[80px] px-6 sm:px-12 py-8 md:pl-14 lg:pl-16 transition-all duration-300 max-w-[1680px] mx-auto">
         
+        <!-- Header Controls Panel Section -->
         <header class="flex flex-col sm:flex-row justify-between sm:items-center mb-8 pb-5 border-b border-slate-300/90 dark:border-slate-700/80 gap-4">
             <div class="flex items-center gap-4">
                 <button id="mobileMenuBtn" class="md:hidden p-2.5 text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1f2937] border border-slate-300 rounded-xl shadow-sm">
@@ -203,12 +209,13 @@ $total_active_queue = $total_pending + $total_in_progress;
                     <i id="themeToggleIcon" class="fas fa-moon text-base"></i>
                 </button>
 
+                <!-- Profile Menu Dropdown -->
                 <div class="relative">
                     <button id="profileMenuBtn" class="w-10 h-10 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400 border border-slate-300 dark:border-slate-700 shadow-sm hover:border-sky-500 dark:hover:border-sky-400 focus:outline-none transition-all duration-150">
                         <i class="fas fa-user-md text-lg"></i>
                     </button>
                     
-                    <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl shadow-xl z-[1100] animate-[modalFadeIn_0.15s_ease-out]">
+                    <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl shadow-xl z-[1100]">
                         <div class="p-3 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-850/40 rounded-t-xl">
                             <p class="text-xs font-bold text-slate-900 dark:text-white truncate">System Administrator</p>
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">HOSP-HQ COM</p>
@@ -224,54 +231,35 @@ $total_active_queue = $total_pending + $total_in_progress;
             </div>
         </header>
 
+        <!-- Metrics Cards Overview Row -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm">
-                <div class="flex justify-between items-center mb-2">
-                    <div class="w-9 h-9 bg-amber-50 dark:bg-amber-500/10 rounded-lg flex items-center justify-center text-amber-600 dark:text-amber-400 text-base">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                </div>
-                <div class="text-2xl font-bold text-slate-900 dark:text-white mb-1 font-mono"><?= number_format($total_pending); ?></div>
-                <div class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">Total Waiting</div>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
+                <div class="w-9 h-9 bg-slate-100 dark:bg-slate-700/50 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm mb-2"><i class="fas fa-clock"></i></div>
+                <div class="text-xl font-extrabold text-slate-900 dark:text-white font-mono leading-none"><?= number_format($total_pending); ?></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">Total Waiting</div>
             </div>
-
-            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm">
-                <div class="flex justify-between items-center mb-2">
-                    <div class="w-9 h-9 bg-sky-50 dark:bg-sky-500/10 rounded-lg flex items-center justify-center text-sky-600 dark:text-sky-400 text-base">
-                        <i class="fas fa-spinner"></i>
-                    </div>
-                </div>
-                <div class="text-2xl font-bold text-slate-900 dark:text-white mb-1 font-mono"><?= number_format($total_in_progress); ?></div>
-                <div class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">In Consultation</div>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
+                <div class="w-9 h-9 bg-sky-50 dark:bg-sky-500/10 rounded-xl flex items-center justify-center text-sky-500 text-sm mb-2"><i class="fas fa-user-md"></i></div>
+                <div class="text-xl font-extrabold text-sky-600 dark:text-sky-400 font-mono leading-none"><?= number_format($total_in_progress); ?></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">In Consultation</div>
             </div>
-
-            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm">
-                <div class="flex justify-between items-center mb-2">
-                    <div class="w-9 h-9 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-base">
-                        <i class="fas fa-check-double"></i>
-                    </div>
-                </div>
-                <div class="text-2xl font-bold text-slate-900 dark:text-white mb-1 font-mono"><?= number_format($total_completed); ?></div>
-                <div class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">Served Clearances</div>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
+                <div class="w-9 h-9 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500 text-sm mb-2"><i class="fas fa-check-circle"></i></div>
+                <div class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono leading-none"><?= number_format($total_completed); ?></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">Served Clearances</div>
             </div>
-
-            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm">
-                <div class="flex justify-between items-center mb-2">
-                    <div class="w-9 h-9 <?= $high_congestion_count > 0 ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400' ?> rounded-lg flex items-center justify-center text-base">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                </div>
-                <div class="text-2xl font-bold text-slate-900 dark:text-white mb-1 font-mono"><?= number_format($high_congestion_count); ?></div>
-                <div class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">Overloaded Units</div>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center">
+                <div class="w-9 h-9 bg-rose-50 dark:bg-rose-500/10 rounded-xl flex items-center justify-center text-rose-500 text-sm mb-2"><i class="fas fa-exclamation-triangle"></i></div>
+                <div class="text-xl font-extrabold text-rose-600 dark:text-rose-400 font-mono leading-none"><?= number_format($high_congestion_count); ?></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">Overloaded Units</div>
             </div>
         </div>
 
-        <?php if ($least_congested): ?>
+        <!-- Intelligent Routing Suggestion Card -->
+        <?php if ($least_congested && isset($least_congested['name'])): ?>
             <div class="p-4 mb-6 bg-sky-50 dark:bg-sky-500/10 border border-sky-300 dark:border-sky-500/20 text-sky-700 dark:text-sky-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm gap-3">
                 <div class="flex items-center">
-                    <div class="w-8 h-8 rounded-lg bg-sky-500 text-white flex items-center justify-center mr-3 shrink-0">
-                        <i class="fas fa-route text-xs"></i>
-                    </div>
+                    <div class="w-8 h-8 rounded-lg bg-sky-500 text-white flex items-center justify-center mr-3 shrink-0"><i class="fas fa-route text-xs"></i></div>
                     <div>
                         <h4 class="text-xs font-extrabold uppercase tracking-wider text-sky-900 dark:text-sky-400">Intelligent Routing Suggestion</h4>
                         <p class="text-[11px] mt-0.5 opacity-90">Triage operations should balance layout distribution by routing new entries toward <strong class="font-bold underline"><?= htmlspecialchars($least_congested['name']); ?></strong> (<?= isset($least_congested['waiting_count']) ? $least_congested['waiting_count'] : 0; ?> waiting).</p>
@@ -281,15 +269,12 @@ $total_active_queue = $total_pending + $total_in_progress;
             </div>
         <?php endif; ?>
 
+        <!-- Functional Department Status Breakdown Table Section -->
         <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl shadow-sm overflow-hidden mb-8">
             <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h3 class="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider">Functional Department Status Breakdown</h3>
                     <p class="text-[11px] text-slate-400 mt-0.5">Real-time parameters for internal diagnostic throughput and clinical workflow speed</p>
-                </div>
-                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Live Tracking Sync</span>
                 </div>
             </div>
 
@@ -297,13 +282,13 @@ $total_active_queue = $total_pending + $total_in_progress;
                 <table class="w-full border-collapse text-left">
                     <thead>
                         <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-300 dark:border-slate-700/80 text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                            <th class="py-3 px-4">Clinic Department Name</th>
-                            <th class="py-3 px-4 text-center">Pending Check-In</th>
-                            <th class="py-3 px-4 text-center">Active Treatment</th>
-                            <th class="py-3 px-4 text-center">Today Completed</th>
-                            <th class="py-3 px-4 text-center">Hourly Target Capacity</th>
-                            <th class="py-3 px-4">Congestion Index Threshold</th>
-                            <th class="py-3 px-4 text-right">System Metrics Context</th>
+                            <th class="py-3.5 px-4">Clinic Department Name</th>
+                            <th class="py-3.5 px-4 text-center">Pending Check-In</th>
+                            <th class="py-3.5 px-4 text-center">Active Treatment</th>
+                            <th class="py-3.5 px-4 text-center">Today Completed</th>
+                            <th class="py-3.5 px-4 text-center">Hourly Target Capacity</th>
+                            <th class="py-3.5 px-4">Congestion Index Threshold</th>
+                            <th class="py-3.5 px-4 text-right">System Metrics Context</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200 dark:divide-slate-700/60 text-xs font-medium">
@@ -313,7 +298,6 @@ $total_active_queue = $total_pending + $total_in_progress;
                             </tr>
                         <?php else: ?>
                             <?php foreach ($detailed_stats as $row): 
-                                // Find match from QueueManager analytical response map
                                 $matched_analytics = [
                                     'waiting_count' => $row['pending_count'],
                                     'congestion_level' => 'Low'
@@ -325,24 +309,15 @@ $total_active_queue = $total_pending + $total_in_progress;
                                     }
                                 }
                                 
-                                // Setup color dynamic badges safely
                                 $level = isset($matched_analytics['congestion_level']) ? $matched_analytics['congestion_level'] : 'Low';
                                 if ($level === 'Critical' || $level === 'High') {
                                     $badge_styles = "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400";
+                                    $dot_color = $level === 'Critical' ? 'bg-rose-500 animate-ping' : 'bg-rose-500';
                                 } elseif ($level === 'Moderate') {
                                     $badge_styles = "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400";
-                                } else {
-                                    $badge_styles = "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
-                                }
-
-                                // Define dot animation class parameters
-                                if ($level === 'Critical') {
-                                    $dot_color = 'bg-rose-500 animate-ping';
-                                } elseif ($level === 'High') {
-                                    $dot_color = 'bg-rose-500';
-                                } elseif ($level === 'Moderate') {
                                     $dot_color = 'bg-amber-500';
                                 } else {
+                                    $badge_styles = "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
                                     $dot_color = 'bg-emerald-500';
                                 }
                             ?>
@@ -375,8 +350,9 @@ $total_active_queue = $total_pending + $total_in_progress;
         </section>
     </main>
 
+    <!-- Unified Infrastructure Automation Injections -->
     <script>
-        // Real-Time System Clock Script
+        // System Native Clock Integration
         function updateDateTime() {
             const now = new Date();
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -386,18 +362,7 @@ $total_active_queue = $total_pending + $total_in_progress;
         updateDateTime();
         setInterval(updateDateTime, 1000);
 
-        // Header Profile Context Dropdown
-        const profileMenuBtn = document.getElementById('profileMenuBtn');
-        const profileDropdown = document.getElementById('profileDropdown');
-        if (profileMenuBtn && profileDropdown) {
-            profileMenuBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                profileDropdown.classList.toggle('hidden');
-            });
-            document.addEventListener('click', () => profileDropdown.classList.add('hidden'));
-        }
-
-        // Mobile Responsive Navigation Control Hooks
+        // Responsive Mobile Left Drawer Toggles
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
         if (mobileMenuBtn && sidebar) {
@@ -414,22 +379,18 @@ $total_active_queue = $total_pending + $total_in_progress;
             }
         });
 
-        // Activity Inactivity Automatic Timeout Check System
-        const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
-        let inactivityTimer;
-        
-        function resetInactivityTimer() {
-            if (inactivityTimer) clearTimeout(inactivityTimer);
-            inactivityTimer = setTimeout(function() {
-                window.location.href = '../logout.php';
-            }, INACTIVITY_TIMEOUT);
+        // Administrator Action Panel Profile Context Dropdowns
+        const profileMenuBtn = document.getElementById('profileMenuBtn');
+        const profileDropdown = document.getElementById('profileDropdown');
+        if (profileMenuBtn && profileDropdown) {
+            profileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileDropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', () => profileDropdown.classList.add('hidden'));
         }
-        
-        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'keydown'];
-        events.forEach(event => document.addEventListener(event, resetInactivityTimer, false));
-        resetInactivityTimer();
 
-        // Dark/Light System Visual Engine State Context Management
+        // Dark/Light Visual Theme Core Manager Rules
         const themeToggleBtn = document.getElementById('themeToggleBtn');
         const themeToggleIcon = document.getElementById('themeToggleIcon');
         
@@ -454,10 +415,8 @@ $total_active_queue = $total_pending + $total_in_progress;
             });
         }
 
-        // Automatic Page Reload Routine to pull the freshest queue parameters every 60 seconds
-        setInterval(function() {
-            window.location.reload();
-        }, 60000);
+        // Native System Page Auto-Reload Core Logic (60 Seconds Interval)
+        setInterval(function() { window.location.reload(); }, 60000);
     </script>
 </body>
 </html>

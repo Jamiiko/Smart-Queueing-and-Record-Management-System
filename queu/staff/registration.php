@@ -40,16 +40,9 @@ if (!$sessionManager->checkTimeout()) {
 $sessionManager->logActivity('Viewed registration page');
 
 // ============================================
-// LIVE CLINIC METRICS DATA INGESTION
+// CLINICS DATA INGESTION
 // ============================================
-$query = "SELECT 
-            c.*,
-            COUNT(CASE WHEN q.status IN ('pending', 'waiting', 'called') AND DATE(q.registered_at) = CURDATE() THEN 1 END) as live_waiting_count
-          FROM clinics c
-          LEFT JOIN queue_entries q ON c.id = q.clinic_id
-          WHERE c.is_active = 1
-          GROUP BY c.id, c.name, c.capacity_per_hour
-          ORDER BY c.name";
+$query = "SELECT * FROM clinics WHERE is_active = 1 ORDER BY name";
 $clinics = $db->query($query)->fetchAll(PDO::FETCH_ASSOC);
 
 // Handle form submission
@@ -295,12 +288,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
                         <div class="flex flex-col gap-2">
                             <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Primary Clinic Allocation Unit</label>
                             <select name="clinic_id" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 text-sm">
-                                <option value="">-- Registry Asset Record Entry Only --</option>
-                                <?php foreach ($clinics as $clinic): 
-                                    $load_count = (int)$clinic['live_waiting_count'];
-                                ?>
+                                <option value="" disabled selected hidden>Clinics</option>
+                                <option value="">Registration</option>
+                                <?php foreach ($clinics as $clinic): ?>
                                     <option value="<?= $clinic['id']; ?>">
-                                        <?= htmlspecialchars($clinic['name']); ?> (<?= $load_count; ?> waiting)
+                                        <?= htmlspecialchars($clinic['name']); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>

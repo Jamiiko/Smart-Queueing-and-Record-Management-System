@@ -102,1016 +102,610 @@ foreach ($trends as $t) {
     $trend_data[] = $t['total'];
 }
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reports & Analytics | 4ID Station Hospital | Camp Evangelista</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        /* ============================================
-           CSS Variables - Color Palette
-           ============================================ */
-        :root {
-            --soft-blue: #4A90E2;
-            --soft-blue-dark: #3A7BC8;
-            --soft-blue-light: #E7F3FB;
-            --teal: #009688;
-            --teal-dark: #00796B;
-            --soft-green: #A4D1B1;
-            --warm-yellow: #FFB84D;
-            --light-coral: #FF6F61;
-            --white: #FFFFFF;
-            --light-gray: #F2F2F2;
-            --light-beige: #F4F1EC;
-            --pale-blue: #E7F3FB;
-            --dark-gray: #212121;
-            --charcoal: #333333;
-            --border-light: #E5E9F0;
-            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--light-gray);
-            color: var(--charcoal);
-            line-height: 1.5;
-        }
-
-        /* ============================================
-           Sidebar Navigation
-           ============================================ */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 280px;
-            height: 100vh;
-            background: var(--white);
-            box-shadow: var(--shadow-md);
-            z-index: 1000;
-            overflow-y: auto;
-            border-right: 1px solid var(--border-light);
-        }
-
-        .sidebar-logo {
-            padding: 28px 24px;
-            border-bottom: 1px solid var(--border-light);
-            margin-bottom: 24px;
-        }
-
-        .sidebar-logo h2 {
-            color: var(--soft-blue);
-            font-size: 1.1rem;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-            margin-bottom: 4px;
-        }
-
-        .sidebar-logo p {
-            color: var(--charcoal);
-            font-size: 0.7rem;
-            opacity: 0.7;
-        }
-
-        .nav-menu {
-            list-style: none;
-            padding: 0 16px;
-        }
-
-        .nav-item {
-            margin-bottom: 4px;
-        }
-
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            border-radius: 12px;
-            color: var(--charcoal);
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .nav-link i {
-            width: 22px;
-            color: var(--soft-blue);
-            font-size: 1.1rem;
-        }
-
-        .nav-link:hover {
-            background: var(--pale-blue);
-            color: var(--soft-blue);
-        }
-
-        .nav-link.active {
-            background: var(--soft-blue);
-            color: white;
-        }
-
-        .nav-link.active i {
-            color: white;
-        }
-
-        /* ============================================
-           Main Content
-           ============================================ */
-        .main-content {
-            margin-left: 280px;
-            padding: 28px 36px;
-            min-height: 100vh;
-        }
-
-        /* Top Bar */
-        .top-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 32px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .page-title h1 {
-            color: var(--dark-gray);
-            font-size: 1.75rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: 4px;
-        }
-
-        .page-title p {
-            color: var(--charcoal);
-            font-size: 0.85rem;
-            opacity: 0.7;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .date-time {
-            text-align: right;
-            font-size: 0.85rem;
-        }
-
-        .date {
-            color: var(--charcoal);
-            font-weight: 500;
-        }
-
-        .time {
-            color: var(--soft-blue);
-            font-weight: 600;
-        }
-
-        .user-avatar {
-            width: 44px;
-            height: 44px;
-            background: var(--pale-blue);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--soft-blue);
-            font-weight: 600;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            margin-bottom: 32px;
-        }
-
-        .stat-card {
-            background: var(--white);
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--border-light);
-            transition: all 0.2s ease;
-            text-align: center;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .stat-icon {
-            width: 56px;
-            height: 56px;
-            background: var(--pale-blue);
-            border-radius: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--soft-blue);
-            font-size: 1.5rem;
-            margin: 0 auto 12px;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-            margin-bottom: 4px;
-        }
-
-        .stat-label {
-            color: var(--charcoal);
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        /* Filter Card */
-        .filter-card {
-            background: var(--white);
-            border-radius: 20px;
-            border: 1px solid var(--border-light);
-            padding: 24px;
-            margin-bottom: 32px;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .filter-form {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            align-items: flex-end;
-        }
-
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .filter-group label {
-            font-size: 0.7rem;
-            font-weight: 600;
-            color: var(--charcoal);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .filter-group input,
-        .filter-group select {
-            padding: 10px 14px;
-            border: 1px solid var(--border-light);
-            border-radius: 12px;
-            font-family: inherit;
-            font-size: 0.85rem;
-            background: var(--white);
-        }
-
-        .filter-group input:focus,
-        .filter-group select:focus {
-            outline: none;
-            border-color: var(--soft-blue);
-        }
-
-        .btn-generate {
-            background: var(--teal);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.2s;
-        }
-
-        .btn-generate:hover {
-            background: var(--teal-dark);
-            transform: translateY(-1px);
-        }
-
-        .btn-print {
-            background: var(--light-gray);
-            color: var(--charcoal);
-            border: 1px solid var(--border-light);
-            padding: 10px 20px;
-            border-radius: 12px;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-        }
-
-        .btn-print:hover {
-            background: var(--border-light);
-        }
-
-        /* Charts Grid */
-        .charts-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 24px;
-            margin-bottom: 32px;
-        }
-
-        .chart-card {
-            background: var(--white);
-            border-radius: 20px;
-            border: 1px solid var(--border-light);
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .chart-header {
-            padding: 18px 24px;
-            border-bottom: 1px solid var(--border-light);
-            background: var(--white);
-        }
-
-        .chart-header h3 {
-            color: var(--dark-gray);
-            font-size: 1rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .chart-header h3 i {
-            color: var(--soft-blue);
-        }
-
-        .chart-body {
-            padding: 20px;
-        }
-
-        canvas {
-            max-height: 300px;
-            width: 100%;
-        }
-
-        /* Clinic Performance Table */
-        .performance-card {
-            background: var(--white);
-            border-radius: 20px;
-            border: 1px solid var(--border-light);
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-            margin-bottom: 32px;
-        }
-
-        .performance-header {
-            padding: 18px 24px;
-            border-bottom: 1px solid var(--border-light);
-            background: var(--white);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-
-        .performance-header h3 {
-            color: var(--dark-gray);
-            font-size: 1rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .performance-header h3 i {
-            color: var(--soft-blue);
-        }
-
-        .table-container {
-            overflow-x: auto;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .data-table th {
-            text-align: left;
-            padding: 14px 16px;
-            background: var(--light-gray);
-            font-weight: 600;
-            color: var(--dark-gray);
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .data-table td {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border-light);
-            color: var(--charcoal);
-            font-size: 0.85rem;
-        }
-
-        .data-table tr:hover td {
-            background: var(--pale-blue);
-        }
-
-        .trend-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .trend-table th {
-            text-align: left;
-            padding: 12px 16px;
-            background: var(--light-gray);
-            font-weight: 600;
-            color: var(--dark-gray);
-            font-size: 0.7rem;
-            text-transform: uppercase;
-        }
-
-        .trend-table td {
-            padding: 10px 16px;
-            border-bottom: 1px solid var(--border-light);
-            font-size: 0.8rem;
-        }
-
-        .badge-success {
-            background: var(--soft-green);
-            color: var(--dark-gray);
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.7rem;
-        }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            .charts-grid {
-                grid-template-columns: 1fr;
-            }
-            .filter-form {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-                transition: transform 0.3s;
-            }
-            .main-content {
-                margin-left: 0;
-                padding: 20px;
-            }
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-            .filter-form {
-                grid-template-columns: 1fr;
-            }
-            .top-bar {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 16px;
-            }
-        }
-
         @media print {
-            .sidebar, .top-bar, .filter-card, .btn-print, .nav-menu {
-                display: none;
-            }
-            .main-content {
-                margin-left: 0;
-                padding: 0;
-            }
-            .stat-card, .chart-card, .performance-card {
-                break-inside: avoid;
-                page-break-inside: avoid;
-            }
+            .no-print, #sidebar, #themeToggleBtn, #profileMenuBtn { display: none !important; }
+            main { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; }
+            body { background: white !important; color: black !important; }
+            .bg-white { border: 1px solid #CBD5E1 !important; box-shadow: none !important; break-inside: avoid; margin-bottom: 24px !important; }
+            canvas { max-height: 250px !important; }
         }
     </style>
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-[#111827] text-slate-800 dark:text-slate-100 font-sans antialiased min-h-full transition-colors duration-200">
 
-<!-- Sidebar Navigation -->
-<aside class="sidebar">
-    <div class="sidebar-logo">
-        <h2>4ID Station Hospital</h2>
-        <p>Camp Evangelista</p>
-    </div>
-    <ul class="nav-menu">
-        <li class="nav-item">
-            <a href="dashboard.php" class="nav-link">
-                <i class="fas fa-tachometer-alt"></i>
-                <span>Dashboard</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="patients.php" class="nav-link">
-                <i class="fas fa-users"></i>
-                <span>Patients</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="queue-monitor.php" class="nav-link">
-                <i class="fas fa-chart-line"></i>
-                <span>Queue Monitor</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="clinic-congestion.php" class="nav-link">
-                <i class="fas fa-chart-simple"></i>
-                <span>Clinic Congestion</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="reports.php" class="nav-link active">
-                <i class="fas fa-chart-bar"></i>
-                <span>Reports</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="users.php" class="nav-link">
-                <i class="fas fa-users-cog"></i>
-                <span>User Management</span>
-            </a>
-        </li>
-       
-        <li class="nav-item">
-            <a href="login-monitor.php" class="nav-link">
-                <i class="fas fa-history"></i>
-                <span>Login Monitor</span>
-            </a>
-        </li>
-          <li class="nav-item" style="margin-top: 20px; border-top: 1px solid var(--border-light); padding-top: 16px;">
-            <a href="../logout.php" class="nav-link" style="color: var(--light-coral);" onclick="return confirm('Are you sure you want to logout?')">
-                <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
-            </a>
-        </li>
-    </ul>
-</aside>
-
-<!-- Main Content -->
-<main class="main-content">
-    <!-- Top Bar -->
-    <div class="top-bar">
-        <div class="page-title">
-            <h1>Reports & Analytics</h1>
-            <p>Comprehensive analytics and performance insights</p>
+    <aside id="sidebar" class="fixed top-0 left-0 h-screen bg-white dark:bg-[#1f2937] border-r border-slate-300/90 dark:border-slate-700/80 shadow-xl md:shadow-none z-[1000] flex flex-col justify-between overflow-x-hidden transition-all duration-300 ease-in-out group/sidebar -translate-x-full md:translate-x-0 w-[260px] md:w-[80px] md:hover:w-[260px]">
+        <div>
+            <div class="p-4 border-b border-slate-300/90 dark:border-slate-700/60 mb-5 flex flex-col items-center justify-center min-h-[160px]">
+                <div class="hidden md:flex md:group-hover/sidebar:hidden flex-col items-center justify-center font-extrabold text-2xl tracking-wider text-sky-600 dark:text-sky-400 leading-tight select-none animate-[fadeIn_0.15s_ease-in-out]">
+                    <span>C</span><span>E</span><span>S</span><span>H</span>
+                </div>
+                <div class="flex md:hidden md:group-hover/sidebar:flex flex-col items-center animate-[fadeIn_0.2s_ease-in-out]">
+                    <img src="../assets/images/logo.png" alt="CESH Logo" class="w-21 h-21 object-contain rounded-xl mb-2.5" onerror="this.style.display='none'">
+                    <h2 class="text-slate-800 dark:text-slate-100 text-sm font-extrabold tracking-tight text-center whitespace-nowrap">4ID Station Hospital</h2>
+                    <p class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest text-center whitespace-nowrap mt-1">Camp Evangelista</p>
+                </div>
+            </div>
+            
+            <nav class="px-3 md:group-hover/sidebar:px-4 transition-all duration-200">
+                <ul class="list-none p-0 space-y-1.5">
+                    <li>
+                        <a href="dashboard.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-tachometer-alt text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="patients.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-users text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Patients</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="queue-monitor.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-chart-line text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Queue Monitor</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="clinic-congestion.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-chart-pie text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Clinic Congestion</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="reports.php" class="flex items-center rounded-xl font-semibold transition-all duration-150 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-l-4 border-sky-500 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-chart-bar text-base"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Reports</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="users.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-users-cog text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">User Management</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="login-monitor.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-history text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Login Monitor</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
         </div>
-        <div class="user-info">
-            <div class="date-time">
-                <div class="date" id="currentDate"></div>
-                <div class="time" id="currentTime"></div>
-            </div>
-            <div class="user-avatar">
-                <i class="fas fa-user-md"></i>
-            </div>
-        </div>
-    </div>
+    </aside>
 
-    <!-- Filter Card -->
-    <div class="filter-card">
-        <form method="GET" class="filter-form">
-            <div class="filter-group">
-                <label><i class="fas fa-calendar-alt"></i> Date From</label>
-                <input type="date" name="date_from" value="<?php echo $date_from; ?>">
-            </div>
-            <div class="filter-group">
-                <label><i class="fas fa-calendar-alt"></i> Date To</label>
-                <input type="date" name="date_to" value="<?php echo $date_to; ?>">
-            </div>
-            <div class="filter-group">
-                <label><i class="fas fa-chart-line"></i> Report Type</label>
-                <select name="report_type">
-                    <option value="daily" <?php echo $report_type == 'daily' ? 'selected' : ''; ?>>Daily</option>
-                    <option value="monthly" <?php echo $report_type == 'monthly' ? 'selected' : ''; ?>>Monthly</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <button type="submit" class="btn-generate">
-                    <i class="fas fa-chart-simple"></i> Generate Report
+    <main class="min-h-screen ml-0 md:ml-[80px] px-6 sm:px-12 py-8 md:pl-14 lg:pl-16 transition-all duration-300 max-w-[1680px] mx-auto">
+        
+        <header class="flex flex-col sm:flex-row justify-between sm:items-center mb-8 pb-5 border-b border-slate-300/90 dark:border-slate-700/80 gap-4">
+            <div class="flex items-center gap-4">
+                <button id="mobileMenuBtn" class="md:hidden p-2.5 text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1f2937] border border-slate-300 rounded-xl shadow-sm">
+                    <i class="fas fa-bars text-xl"></i>
                 </button>
+                <div>
+                    <h1 class="text-slate-900 dark:text-white text-2xl md:text-3xl font-extrabold tracking-tight mb-0.5">Reports & Analytics</h1>
+                    <p class="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">Comprehensive analytics and performance insights</p>
+                </div>
             </div>
-        </form>
-    </div>
+            
+            <div class="flex items-center justify-between sm:justify-end gap-4 relative">
+                <div class="text-right text-xs hidden sm:block">
+                    <div class="text-slate-700 dark:text-slate-300 font-bold" id="currentDate"></div>
+                    <div class="text-sky-600 dark:text-sky-400 font-bold font-mono text-sm mt-0.5" id="currentTime"></div>
+                </div>
 
-    <!-- Statistics Cards -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon">
-                <i class="fas fa-users"></i>
+                <button id="themeToggleBtn" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl transition-all shadow-sm" title="Toggle Visual Mode">
+                    <i id="themeToggleIcon" class="fas fa-moon text-base"></i>
+                </button>
+
+                <div class="relative">
+                    <button id="profileMenuBtn" class="w-10 h-10 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400 border border-slate-300 dark:border-slate-700 shadow-sm hover:border-sky-500 dark:hover:border-sky-400 focus:outline-none transition-all duration-150">
+                        <i class="fas fa-user-md text-lg"></i>
+                    </button>
+                    
+                    <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl shadow-xl z-[1100] animate-[modalFadeIn_0.15s_ease-out]">
+                        <div class="p-3 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-850/40 rounded-t-xl">
+                            <p class="text-xs font-bold text-slate-900 dark:text-white truncate">System Administrator</p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">HOSP-HQ COM</p>
+                        </div>
+                        <div class="p-2">
+                            <a href="../logout.php" onclick="return confirm('Confirm Dashboard Exit?')" class="flex items-center gap-2.5 w-full text-left px-3 py-2.5 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors">
+                                <i class="fas fa-power-off text-sm"></i>
+                                <span>Logout Session</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="stat-value"><?php echo number_format($summary['total_patients'] ?? 0); ?></div>
-            <div class="stat-label">Unique Patients</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon">
-                <i class="fas fa-calendar-check"></i>
+        </header>
+
+        <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-5 shadow-sm mb-6 no-print">
+            <form method="GET" class="flex flex-col lg:flex-row items-end gap-5">
+                <div class="w-full lg:w-auto flex-1 grid grid-cols-1 sm:grid-cols-3 gap-5">
+                    <div>
+                        <label class="block text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2"><i class="fas fa-calendar-alt text-sky-500 mr-1"></i> Date From</label>
+                        <input type="date" name="date_from" value="<?php echo htmlspecialchars($date_from); ?>" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2"><i class="fas fa-calendar-check text-sky-500 mr-1"></i> Date To</label>
+                        <input type="date" name="date_to" value="<?php echo htmlspecialchars($date_to); ?>" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2"><i class="fas fa-layer-group text-sky-500 mr-1"></i> Report Type</label>
+                        <select name="report_type" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all">
+                            <option value="daily" <?php echo $report_type == 'daily' ? 'selected' : ''; ?>>Daily</option>
+                            <option value="monthly" <?php echo $report_type == 'monthly' ? 'selected' : ''; ?>>Monthly</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="w-full lg:w-auto">
+                    <button type="submit" class="w-full bg-sky-600 dark:bg-sky-500 text-white font-bold text-xs tracking-wide uppercase px-6 py-3 rounded-xl hover:bg-sky-700 dark:hover:bg-sky-600 transition-all flex items-center justify-center gap-2 shadow-sm">
+                        <i class="fas fa-chart-simple text-sm"></i> Generate Report
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-5 shadow-sm flex items-center gap-4">
+                <div class="w-12 h-12 bg-sky-50 dark:bg-sky-500/10 rounded-xl flex items-center justify-center text-sky-600 dark:text-sky-400 text-xl shrink-0">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-slate-900 dark:text-white font-mono leading-tight"><?php echo number_format($summary['total_patients'] ?? 0); ?></div>
+                    <div class="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider mt-0.5">Unique Patients</div>
+                </div>
             </div>
-            <div class="stat-value"><?php echo number_format($summary['total_visits'] ?? 0); ?></div>
-            <div class="stat-label">Total Visits</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon">
-                <i class="fas fa-clock"></i>
+
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-5 shadow-sm flex items-center gap-4">
+                <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xl shrink-0">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-slate-900 dark:text-white font-mono leading-tight"><?php echo number_format($summary['total_visits'] ?? 0); ?></div>
+                    <div class="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider mt-0.5">Total Visits</div>
+                </div>
             </div>
-            <div class="stat-value"><?php echo round($summary['avg_wait_time'] ?? 0); ?> min</div>
-            <div class="stat-label">Average Wait Time</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon">
-                <i class="fas fa-check-circle"></i>
+
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-5 shadow-sm flex items-center gap-4">
+                <div class="w-12 h-12 bg-amber-50 dark:bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 text-xl shrink-0">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-slate-900 dark:text-white font-mono leading-tight"><?php echo round($summary['avg_wait_time'] ?? 0); ?><span class="text-sm font-medium text-slate-400 ml-1">m</span></div>
+                    <div class="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider mt-0.5">Average Wait Time</div>
+                </div>
             </div>
-            <div class="stat-value"><?php echo number_format($summary['completed'] ?? 0); ?></div>
-            <div class="stat-label">Completed Visits</div>
-        </div>
-    </div>
 
-    <!-- Charts Grid -->
-    <div class="charts-grid">
-        <!-- Priority Distribution Chart -->
-        <div class="chart-card">
-            <div class="chart-header">
-                <h3><i class="fas fa-chart-pie"></i> Priority Distribution</h3>
-            </div>
-            <div class="chart-body">
-                <canvas id="priorityChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Trend Chart -->
-        <div class="chart-card">
-            <div class="chart-header">
-                <h3><i class="fas fa-chart-line"></i> Patient Volume Trend</h3>
-            </div>
-            <div class="chart-body">
-                <canvas id="trendChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Clinic Performance Table -->
-    <div class="performance-card">
-        <div class="performance-header">
-            <h3><i class="fas fa-hospital-user"></i> Clinic Performance</h3>
-            <button onclick="window.print()" class="btn-print">
-                <i class="fas fa-print"></i> Print Report
-            </button>
-        </div>
-        <div class="table-container">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Clinic</th>
-                        <th>Total Patients</th>
-                        <th>Unique Patients</th>
-                        <th>Completed</th>
-                        <th>Completion Rate</th>
-                        <th>Avg Time (min)</th>
-                    </thead>
-                <tbody>
-                    <?php foreach ($clinic_stats as $clinic): ?>
-                    <tr>
-                        <td><strong><?php echo htmlspecialchars($clinic['name']); ?></strong></td>
-                        <td><?php echo $clinic['total_patients'] ?? 0; ?></td>
-                        <td><?php echo $clinic['unique_patients'] ?? 0; ?></td>
-                        <td><?php echo $clinic['completed'] ?? 0; ?></td>
-                        <td>
-                            <?php 
-                            $rate = ($clinic['total_patients'] > 0) ? round(($clinic['completed'] / $clinic['total_patients']) * 100) : 0;
-                            ?>
-                            <span class="badge-success"><?php echo $rate; ?>%</span>
-                        </td>
-                        <td><?php echo round($clinic['avg_time'] ?? 0); ?> min</td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Trend Data Table -->
-    <div class="performance-card">
-        <div class="performance-header">
-            <h3><i class="fas fa-table-list"></i> <?php echo $report_type == 'daily' ? 'Daily' : 'Monthly'; ?> Breakdown</h3>
-        </div>
-        <div class="table-container">
-            <table class="trend-table">
-                <thead>
-                    <tr>
-                        <th><?php echo $report_type == 'daily' ? 'Date' : 'Month'; ?></th>
-                        <th>Total Visits</th>
-                        <th>PR1 (Military)</th>
-                        <th>PR2 (Priority)</th>
-                        <th>PR3 (Regular)</th>
-                        <th>Avg Wait (min)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($trends as $trend): ?>
-                    <tr>
-                        <td><strong><?php echo $report_type == 'daily' ? date('M d, Y', strtotime($trend['date'])) : $trend['month']; ?></strong></td>
-                        <td><?php echo $trend['total']; ?></td>
-                        <td><?php echo $trend['pr1']; ?></td>
-                        <td><?php echo $trend['pr2']; ?></td>
-                        <td><?php echo $trend['pr3']; ?></td>
-                        <td><?php echo round($trend['avg_wait'] ?? 0); ?> min</td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</main>
-
-<script>
-    // Date and Time Display
-    function updateDateTime() {
-        const now = new Date();
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', options);
-        document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    }
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
-
-    // Priority Distribution Chart
-    const priorityCtx = document.getElementById('priorityChart').getContext('2d');
-    new Chart(priorityCtx, {
-        type: 'doughnut',
-        data: {
-            labels: <?php echo json_encode($priority_labels); ?>,
-            datasets: [{
-                data: <?php echo json_encode($priority_data); ?>,
-                backgroundColor: ['#FF6F61', '#FFB84D', '#A4D1B1'],
-                borderWidth: 0,
-                hoverOffset: 10
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        font: { family: 'Inter', size: 11 },
-                        usePointStyle: true,
-                        boxWidth: 10
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.raw || 0;
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-                            return `${label}: ${value} (${percentage}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    // Trend Chart
-    const trendCtx = document.getElementById('trendChart').getContext('2d');
-    new Chart(trendCtx, {
-        type: 'line',
-        data: {
-            labels: <?php echo json_encode($trend_labels); ?>,
-            datasets: [{
-                label: 'Patient Volume',
-                data: <?php echo json_encode($trend_data); ?>,
-                borderColor: '#4A90E2',
-                backgroundColor: 'rgba(74, 144, 226, 0.1)',
-                tension: 0.3,
-                fill: true,
-                pointBackgroundColor: '#4A90E2',
-                pointBorderColor: '#fff',
-                pointRadius: 4,
-                pointHoverRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `Patients: ${context.raw}`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: '#E5E9F0'
-                    },
-                    ticks: {
-                        stepSize: 1,
-                        font: { size: 10 }
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        font: { size: 10 },
-                        maxRotation: 45,
-                        minRotation: 45
-                    }
-                }
-            }
-        }
-    });
-    // ============================================
-// AUTO-LOGOUT AFTER INACTIVITY
-// ============================================
-
-// Timeout in milliseconds (30 minutes = 30 * 60 * 1000)
-const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-let inactivityTimer;
-let warningTimer;
-let warningShown = false;
-
-// Function to reset the inactivity timer
-function resetInactivityTimer() {
-    // Clear existing timers
-    if (inactivityTimer) clearTimeout(inactivityTimer);
-    if (warningTimer) clearTimeout(warningTimer);
-    warningShown = false;
-    hideWarningModal();
-    
-    // Start new timer
-    inactivityTimer = setTimeout(logoutUser, INACTIVITY_TIMEOUT);
-    
-    // Set warning timer (show warning 2 minutes before logout)
-    warningTimer = setTimeout(showWarningModal, INACTIVITY_TIMEOUT - (2 * 60 * 1000));
-    
-    // Send heartbeat to server to keep session alive
-    sendHeartbeat();
-}
-
-// Function to send heartbeat to server
-function sendHeartbeat() {
-    fetch('heartbeat.php', {
-        method: 'POST',
-        credentials: 'same-origin'
-    }).catch(err => console.log('Heartbeat failed:', err));
-}
-
-// Function to logout the user
-function logoutUser() {
-    // Show logout message
-    const logoutMsg = document.createElement('div');
-    logoutMsg.innerHTML = `
-        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                    background: rgba(0,0,0,0.8); z-index: 9999; display: flex; 
-                    align-items: center; justify-content: center;">
-            <div style="background: white; padding: 30px; border-radius: 16px; text-align: center; max-width: 400px;">
-                <i class="fas fa-clock" style="font-size: 48px; color: #FF6F61; margin-bottom: 20px;"></i>
-                <h3>Session Expired</h3>
-                <p>You have been logged out due to inactivity.</p>
-                <div style="margin-top: 20px;">
-                    <div class="spinner"></div>
-                    <p style="margin-top: 10px;">Redirecting to login page...</p>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-5 shadow-sm flex items-center gap-4">
+                <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-xl shrink-0">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-slate-900 dark:text-white font-mono leading-tight"><?php echo number_format($summary['completed'] ?? 0); ?></div>
+                    <div class="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider mt-0.5">Completed Visits</div>
                 </div>
             </div>
         </div>
-    `;
-    document.body.appendChild(logoutMsg);
-    
-    // Redirect to logout page after 2 seconds
-    setTimeout(function() {
-        window.location.href = '../logout.php';
-    }, 2000);
-}
 
-// Function to show warning modal
-function showWarningModal() {
-    if (warningShown) return;
-    warningShown = true;
-    
-    // Create warning modal
-    const modal = document.createElement('div');
-    modal.id = 'sessionWarningModal';
-    modal.innerHTML = `
-        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                    background: rgba(0,0,0,0.5); z-index: 10000; display: flex; 
-                    align-items: center; justify-content: center;">
-            <div style="background: white; padding: 30px; border-radius: 16px; text-align: center; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
-                <i class="fas fa-hourglass-half" style="font-size: 48px; color: #FFB84D; margin-bottom: 20px;"></i>
-                <h3>Session About to Expire</h3>
-                <p>You will be logged out due to inactivity.</p>
-                <p id="countdownText" style="font-size: 24px; font-weight: bold; margin: 15px 0;">2:00</p>
-                <button onclick="keepSessionAlive()" style="background: #009688; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                    <i class="fas fa-mouse-pointer"></i> Stay Logged In
-                </button>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20">
+                    <h3 class="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2"><i class="fas fa-chart-pie text-sky-500 text-sm"></i> Priority Distribution</h3>
+                </div>
+                <div class="p-6 flex-1 flex items-center justify-center h-[300px]">
+                    <canvas id="priorityChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20">
+                    <h3 class="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2"><i class="fas fa-chart-line text-sky-500 text-sm"></i> Patient Volume Trend</h3>
+                </div>
+                <div class="p-6 flex-1 flex items-center justify-center h-[300px]">
+                    <canvas id="trendChart"></canvas>
+                </div>
             </div>
         </div>
-    `;
-    document.body.appendChild(modal);
-    
-    // Start countdown
-    let secondsLeft = 120;
-    const countdownElement = document.getElementById('countdownText');
-    
-    const countdownInterval = setInterval(function() {
-        secondsLeft--;
-        const minutes = Math.floor(secondsLeft / 60);
-        const seconds = secondsLeft % 60;
-        if (countdownElement) {
-            countdownElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+        <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl shadow-sm overflow-hidden mb-8">
+            <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20 flex items-center justify-between">
+                <div>
+                    <h3 class="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2"><i class="fas fa-hospital-user text-sky-500 text-sm"></i> Clinic Performance</h3>
+                </div>
+                <button onclick="window.print()" class="no-print bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2">
+                    <i class="fas fa-print"></i> Print
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse text-left">
+                    <thead>
+                        <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-300 dark:border-slate-700/80 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                            <th class="py-3.5 px-6">Clinic</th>
+                            <th class="py-3.5 px-6 text-center">Total Patients</th>
+                            <th class="py-3.5 px-6 text-center">Unique Patients</th>
+                            <th class="py-3.5 px-6 text-center">Completed</th>
+                            <th class="py-3.5 px-6 text-center">Completion Rate</th>
+                            <th class="py-3.5 px-6 text-right">Avg Time</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 dark:divide-slate-700/60 text-xs font-medium text-slate-700 dark:text-slate-300">
+                        <?php if(empty($clinic_stats)): ?>
+                            <tr>
+                                <td colspan="6" class="py-8 text-center text-slate-400 font-bold uppercase tracking-wider">No performance data found for the selected period.</td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php foreach ($clinic_stats as $clinic): ?>
+                        <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                            <td class="py-4 px-6 font-semibold text-slate-900 dark:text-white"><?php echo htmlspecialchars($clinic['name']); ?></td>
+                            <td class="py-4 px-6 text-center font-mono text-slate-600 dark:text-slate-400"><?php echo $clinic['total_patients'] ?? 0; ?></td>
+                            <td class="py-4 px-6 text-center font-mono text-slate-600 dark:text-slate-400"><?php echo $clinic['unique_patients'] ?? 0; ?></td>
+                            <td class="py-4 px-6 text-center font-mono text-emerald-600 dark:text-emerald-400 font-bold"><?php echo $clinic['completed'] ?? 0; ?></td>
+                            <td class="py-4 px-6 text-center">
+                                <?php 
+                                $rate = ($clinic['total_patients'] > 0) ? round(($clinic['completed'] / $clinic['total_patients']) * 100) : 0;
+                                ?>
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-wide bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                    <?php echo $rate; ?>%
+                                </span>
+                            </td>
+                            <td class="py-4 px-6 text-right font-mono text-slate-500 dark:text-slate-400"><?php echo round($clinic['avg_time'] ?? 0); ?> mins</td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl shadow-sm overflow-hidden mb-8">
+            <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20">
+                <h3 class="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2"><i class="fas fa-table-list text-sky-500 text-sm"></i> <?php echo $report_type == 'daily' ? 'Daily' : 'Monthly'; ?> Breakdown</h3>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse text-left">
+                    <thead>
+                        <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-300 dark:border-slate-700/80 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                            <th class="py-3.5 px-6"><?php echo $report_type == 'daily' ? 'Date' : 'Month'; ?></th>
+                            <th class="py-3.5 px-6 text-center">Total Visits</th>
+                            <th class="py-3.5 px-6 text-center text-rose-500">PR1 (Military)</th>
+                            <th class="py-3.5 px-6 text-center text-amber-500">PR2 (Priority)</th>
+                            <th class="py-3.5 px-6 text-center text-sky-500">PR3 (Regular)</th>
+                            <th class="py-3.5 px-6 text-right">Avg Wait</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 dark:divide-slate-700/60 text-xs font-medium text-slate-700 dark:text-slate-300">
+                        <?php if(empty($trends)): ?>
+                            <tr>
+                                <td colspan="6" class="py-8 text-center text-slate-400 font-bold uppercase tracking-wider">No breakdown data found for the selected period.</td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php foreach ($trends as $trend): ?>
+                        <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                            <td class="py-4 px-6 font-semibold text-slate-900 dark:text-white">
+                                <?php echo $report_type == 'daily' ? date('M d, Y', strtotime($trend['date'])) : htmlspecialchars($trend['month']); ?>
+                            </td>
+                            <td class="py-4 px-6 text-center font-mono font-bold text-slate-700 dark:text-slate-300"><?php echo $trend['total']; ?></td>
+                            <td class="py-4 px-6 text-center font-mono text-rose-500"><?php echo $trend['pr1']; ?></td>
+                            <td class="py-4 px-6 text-center font-mono text-amber-500"><?php echo $trend['pr2']; ?></td>
+                            <td class="py-4 px-6 text-center font-mono text-sky-500"><?php echo $trend['pr3']; ?></td>
+                            <td class="py-4 px-6 text-right font-mono text-slate-500 dark:text-slate-400"><?php echo round($trend['avg_wait'] ?? 0); ?> mins</td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // System Clock Integration
+        function updateDateTime() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', options);
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+
+        // Sidebar Responsive Drawer Logic
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        if (mobileMenuBtn && sidebar) {
+            mobileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sidebar.classList.toggle('-translate-x-full');
+            });
+        }
+        document.addEventListener('click', (e) => {
+            if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+                if (mobileMenuBtn && !mobileMenuBtn.contains(e.target)) {
+                    sidebar.classList.add('-translate-x-full');
+                }
+            }
+        });
+
+        // Header Profile Dropdown
+        const profileMenuBtn = document.getElementById('profileMenuBtn');
+        const profileDropdown = document.getElementById('profileDropdown');
+        if (profileMenuBtn && profileDropdown) {
+            profileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileDropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', () => profileDropdown.classList.add('hidden'));
+        }
+
+        // Theme Switcher Sync & Chart Config Detection
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const themeToggleIcon = document.getElementById('themeToggleIcon');
+        
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark'); 
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
+        } else {
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-base text-slate-500';
         }
         
-        if (secondsLeft <= 0) {
-            clearInterval(countdownInterval);
+        if(themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', () => {
+                if (document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.remove('dark'); 
+                    localStorage.setItem('theme', 'light'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-base text-slate-500';
+                } else {
+                    document.documentElement.classList.add('dark'); 
+                    localStorage.setItem('theme', 'dark'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
+                }
+                // Reload window to re-draw charts with correct theme colors
+                window.location.reload();
+            });
         }
-    }, 1000);
-}
 
-// Function to keep session alive
-function keepSessionAlive() {
-    // Hide warning modal
-    hideWarningModal();
-    
-    // Send heartbeat to refresh session
-    fetch('heartbeat.php', {
-        method: 'POST',
-        credentials: 'same-origin'
-    }).then(function() {
-        // Reset timers
+        // ============================================
+        // CHART RENDERING SCRIPTS (PRESERVING PHP DATA)
+        // ============================================
+        const isDark = document.documentElement.classList.contains('dark');
+        const textMuted = isDark ? '#94A3B8' : '#64748B'; // slate-400 : slate-500
+        const gridColor = isDark ? '#334155' : '#E2E8F0'; // slate-700 : slate-200
+        const fontFamily = '"Plus Jakarta Sans", sans-serif';
+
+        // 1. Priority Chart
+        const priorityCtx = document.getElementById('priorityChart').getContext('2d');
+        new Chart(priorityCtx, {
+            type: 'doughnut',
+            data: {
+                labels: <?php echo json_encode($priority_labels); ?>,
+                datasets: [{
+                    data: <?php echo json_encode($priority_data); ?>,
+                    backgroundColor: ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6'], // Rose, Amber, Emerald, Blue, Violet fallback
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: { family: fontFamily, size: 11, weight: 600 },
+                            color: textMuted,
+                            usePointStyle: true,
+                            boxWidth: 8,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                return ` ${label}: ${value} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 2. Trend Line Chart
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: <?php echo json_encode($trend_labels); ?>,
+                datasets: [{
+                    label: 'Patient Volume',
+                    data: <?php echo json_encode($trend_data); ?>,
+                    borderColor: '#0ea5e9', // sky-500
+                    backgroundColor: isDark ? 'rgba(14, 165, 233, 0.15)' : 'rgba(14, 165, 233, 0.1)',
+                    tension: 0.35,
+                    fill: true,
+                    pointBackgroundColor: '#0ea5e9',
+                    pointBorderColor: isDark ? '#1f2937' : '#ffffff',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    borderWidth: 2.5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) { return ` Patients: ${context.raw}`; }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: gridColor },
+                        ticks: { stepSize: 1, font: { family: fontFamily, size: 10, weight: 600 }, color: textMuted }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: fontFamily, size: 10, weight: 600 }, color: textMuted, maxRotation: 45 }
+                    }
+                }
+            }
+        });
+
+        // ============================================
+        // PRESERVED SECURITY & INACTIVITY FUNCTIONS
+        // ============================================
+        const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+        let inactivityTimer;
+        let warningTimer;
+        let warningShown = false;
+
+        function resetInactivityTimer() {
+            if (inactivityTimer) clearTimeout(inactivityTimer);
+            if (warningTimer) clearTimeout(warningTimer);
+            warningShown = false;
+            hideWarningModal();
+            
+            inactivityTimer = setTimeout(logoutUser, INACTIVITY_TIMEOUT);
+            warningTimer = setTimeout(showWarningModal, INACTIVITY_TIMEOUT - (2 * 60 * 1000));
+            sendHeartbeat();
+        }
+
+        function sendHeartbeat() {
+            fetch('heartbeat.php', {
+                method: 'POST',
+                credentials: 'same-origin'
+            }).catch(err => console.log('Heartbeat failed:', err));
+        }
+
+        function logoutUser() {
+            const logoutMsg = document.createElement('div');
+            logoutMsg.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                            background: rgba(15, 23, 42, 0.85); z-index: 9999; display: flex; 
+                            align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+                    <div style="background: white; padding: 36px; border-radius: 16px; text-align: center; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+                        <i class="fas fa-clock" style="font-size: 48px; color: #EF4444; margin-bottom: 20px;"></i>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;">Session Expired</h3>
+                        <p style="color: #64748B; font-size: 0.95rem;">You have been logged out due to inactivity.</p>
+                        <div style="margin-top: 24px;">
+                            <p style="font-size: 0.85rem; color: #94A3B8;">Redirecting to login page...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(logoutMsg);
+            setTimeout(function() { window.location.href = '../logout.php'; }, 2000);
+        }
+
+        function showWarningModal() {
+            if (warningShown) return;
+            warningShown = true;
+            
+            const modal = document.createElement('div');
+            modal.id = 'sessionWarningModal';
+            modal.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                            background: rgba(15, 23, 42, 0.6); z-index: 10000; display: flex; 
+                            align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+                    <div style="background: white; padding: 36px; border-radius: 16px; text-align: center; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+                        <i class="fas fa-hourglass-half" style="font-size: 44px; color: #F59E0B; margin-bottom: 20px;"></i>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;">Session Terminating</h3>
+                        <p style="color: #64748B; font-size: 0.95rem; margin-bottom: 4px;">You will be safely logged out due to systemic inactivity.</p>
+                        <p id="countdownText" style="font-size: 1.75rem; font-weight: 700; color: #0F172A; margin: 16px 0;">2:00</p>
+                        <button onclick="keepSessionAlive()" style="background: #0ea5e9; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem; width: 100%;">
+                            <i class="fas fa-mouse-pointer" style="margin-right: 6px;"></i> Extend Session
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            let secondsLeft = 120;
+            const countdownElement = document.getElementById('countdownText');
+            const countdownInterval = setInterval(function() {
+                secondsLeft--;
+                const minutes = Math.floor(secondsLeft / 60);
+                const seconds = secondsLeft % 60;
+                if (countdownElement) {
+                    countdownElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+                if (secondsLeft <= 0) clearInterval(countdownInterval);
+            }, 1000);
+        }
+
+        function keepSessionAlive() {
+            hideWarningModal();
+            fetch('heartbeat.php', { method: 'POST', credentials: 'same-origin' })
+            .then(function() { resetInactivityTimer(); })
+            .catch(function(err) {
+                console.log('Heartbeat failed:', err);
+                resetInactivityTimer();
+            });
+        }
+
+        function hideWarningModal() {
+            const modal = document.getElementById('sessionWarningModal');
+            if (modal) modal.remove();
+        }
+
+        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'keydown'];
+        events.forEach(function(event) { document.addEventListener(event, resetInactivityTimer, false); });
+
         resetInactivityTimer();
-    }).catch(function(err) {
-        console.log('Heartbeat failed:', err);
-        resetInactivityTimer();
-    });
-}
-
-// Function to hide warning modal
-function hideWarningModal() {
-    const modal = document.getElementById('sessionWarningModal');
-    if (modal) {
-        modal.remove();
-    }
-}
-
-// Track user activity
-const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'keydown'];
-
-events.forEach(function(event) {
-    document.addEventListener(event, resetInactivityTimer, false);
-});
-
-// Initialize timer on page load
-resetInactivityTimer();
-
-// Also send heartbeat every 5 minutes to keep session alive while active
-setInterval(function() {
-    if (!warningShown) {
-        sendHeartbeat();
-    }
-}, 5 * 60 * 1000); // Every 5 minutes
-</script>
-
+        setInterval(function() { if (!warningShown) sendHeartbeat(); }, 5 * 60 * 1000);
+    </script>
 </body>
 </html>

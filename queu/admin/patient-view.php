@@ -6,13 +6,45 @@ require_once dirname(__DIR__) . '/config/database.php';
 
 session_start();
 
+// ============================================
+// AUTHENTICATION CHECK
+// ============================================
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     header('Location: ../index.php');
     exit();
 }
 
+// ============================================
+// DATABASE CONNECTION
+// ============================================
 $database = new Database();
 $db = $database->getConnection();
+
+// ============================================
+// DEFENSIVE WORKAROUND: CREATE MISSING TABLE
+// ============================================
+try {
+    $db->exec("CREATE TABLE IF NOT EXISTS `patient_documents` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `patient_id` INT NOT NULL,
+        `file_name` VARCHAR(255) NOT NULL,
+        `document_type` VARCHAR(100) DEFAULT NULL,
+        `file_path` VARCHAR(255) NOT NULL,
+        `uploaded_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+} catch (PDOException $e) {
+    // If table already exists or minor error occurs, fail silently and proceed
+}
+
+// ============================================
+// SESSION TIMEOUT
+// ============================================
+require_once dirname(__DIR__) . '/includes/SessionManager.php';
+$sessionManager = new SessionManager($db);
+if (!$sessionManager->checkTimeout()) {
+    exit(); // Already redirected
+}
+$sessionManager->logActivity('Viewed patient master record');
 
 $patient_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -45,561 +77,397 @@ $queue_stmt->bindParam(':patient_id', $patient_id);
 $queue_stmt->execute();
 $queue_history = $queue_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get medical history
-$medical_query = "SELECT * FROM medical_history 
-                  WHERE patient_id = :patient_id 
-                  ORDER BY recorded_at DESC
-                  LIMIT 10";
-$medical_stmt = $db->prepare($medical_query);
-$medical_stmt->bindParam(':patient_id', $patient_id);
-$medical_stmt->execute();
-$medical_history = $medical_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Get documents
-$doc_query = "SELECT * FROM documents 
-              WHERE patient_id = :patient_id 
-              ORDER BY uploaded_at DESC
-              LIMIT 10";
+// Get medical documents
+$doc_query = "SELECT * FROM patient_documents WHERE patient_id = :patient_id ORDER BY uploaded_at DESC";
 $doc_stmt = $db->prepare($doc_query);
 $doc_stmt->bindParam(':patient_id', $patient_id);
 $doc_stmt->execute();
 $documents = $doc_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Calculate age
-function calculateAge($dob) {
-    if (!$dob || $dob == '0000-00-00') return '—';
-    $birthDate = new DateTime($dob);
-    $today = new DateTime();
-    return $today->diff($birthDate)->y;
-}
-
-// Get patient status (with fallback)
-$patient_status = isset($patient['status']) ? $patient['status'] : 'Active';
-
-// Determine priority level
-$priority = 'PR3';
-if ($patient['patient_type'] == 'military') {
-    $priority = 'PR1';
-} elseif ($patient['is_pwd'] || $patient['is_senior'] || $patient['is_pregnant']) {
-    $priority = 'PR2';
-}
-
-$priority_info = [
-    'PR1' => ['text' => 'PR1 - Military Personnel', 'color' => '#FF6F61', 'bg' => '#FEF2F0'],
-    'PR2' => ['text' => 'PR2 - Priority (PWD/Senior/Pregnant)', 'color' => '#FFB84D', 'bg' => '#FFF8ED'],
-    'PR3' => ['text' => 'PR3 - Regular Patient', 'color' => '#009688', 'bg' => '#E0F2F1']
-];
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patient Details | <?php echo htmlspecialchars($patient['first_name'] . ' ' . $patient['last_name']); ?> | Camp Evangelista</title>
+    <title>Patient Master Record | 4ID Station Hospital | Camp Evangelista</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-    <style>
-        :root {
-            --soft-blue: #4A90E2;
-            --soft-blue-dark: #3A7BC8;
-            --soft-blue-light: #E7F3FB;
-            --teal: #009688;
-            --teal-dark: #00796B;
-            --soft-green: #A4D1B1;
-            --warm-yellow: #FFB84D;
-            --light-coral: #FF6F61;
-            --white: #FFFFFF;
-            --light-gray: #F2F2F2;
-            --dark-gray: #212121;
-            --charcoal: #333333;
-            --border-light: #E5E9F0;
-            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    }
+                }
+            }
         }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--light-gray);
-            color: var(--charcoal);
-            line-height: 1.5;
-        }
-
-        /* Sidebar Navigation */
-        .sidebar {
-            position: fixed; top: 0; left: 0; width: 280px; height: 100vh;
-            background: var(--white); box-shadow: var(--shadow-md); z-index: 1000;
-            overflow-y: auto; border-right: 1px solid var(--border-light);
-        }
-        .sidebar-logo { padding: 28px 24px; border-bottom: 1px solid var(--border-light); margin-bottom: 24px; }
-        .sidebar-logo h2 { color: var(--soft-blue); font-size: 1.1rem; font-weight: 700; }
-        .sidebar-logo p { color: var(--charcoal); font-size: 0.7rem; opacity: 0.7; }
-        .nav-menu { list-style: none; padding: 0 16px; }
-        .nav-item { margin-bottom: 4px; }
-        .nav-link {
-            display: flex; align-items: center; gap: 12px; padding: 12px 16px;
-            border-radius: 12px; color: var(--charcoal); text-decoration: none;
-            font-weight: 500; transition: all 0.2s ease;
-        }
-        .nav-link i { width: 22px; color: var(--soft-blue); }
-        .nav-link:hover { background: var(--soft-blue-light); color: var(--soft-blue); }
-        .nav-link.active { background: var(--soft-blue); color: white; }
-        .nav-link.active i { color: white; }
-
-        /* Main Content */
-        .main-content { margin-left: 280px; padding: 28px 36px; min-height: 100vh; }
-        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--border-light); }
-        .page-title h1 { color: var(--dark-gray); font-size: 1.75rem; font-weight: 600; margin-bottom: 4px; }
-        .page-title p { color: var(--charcoal); font-size: 0.85rem; opacity: 0.7; }
-        .user-info { display: flex; align-items: center; gap: 20px; }
-        .date-time { text-align: right; font-size: 0.85rem; }
-        .date { color: var(--charcoal); font-weight: 500; }
-        .time { color: var(--soft-blue); font-weight: 600; }
-        .user-avatar { width: 44px; height: 44px; background: var(--soft-blue-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--soft-blue); font-weight: 600; }
-
-        /* Patient Header */
-        .patient-header {
-            background: var(--white);
-            border-radius: 20px;
-            padding: 20px 24px;
-            margin-bottom: 24px;
-            border: 1px solid var(--border-light);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-        .patient-info h2 { color: var(--dark-gray); font-size: 1.3rem; margin-bottom: 4px; }
-        .patient-info p { color: var(--charcoal); font-size: 0.85rem; }
-        .patient-badge {
-            background: var(--soft-blue-light);
-            color: var(--soft-blue);
-            padding: 8px 16px;
-            border-radius: 30px;
-            font-weight: 600;
-        }
-
-        /* Priority Badge */
-        .priority-badge {
-            display: inline-block;
-            padding: 6px 14px;
-            border-radius: 30px;
-            font-size: 0.8rem;
-            font-weight: 700;
-        }
-
-        /* Info Cards */
-        .info-card {
-            background: var(--white);
-            border-radius: 20px;
-            border: 1px solid var(--border-light);
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-            margin-bottom: 24px;
-        }
-        .card-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-light);
-            background: var(--white);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-        .card-header h3 {
-            color: var(--dark-gray);
-            font-size: 1rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .card-header h3 i { color: var(--soft-blue); }
-        .card-body { padding: 20px; }
-
-        /* Info Grid */
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-        }
-        .info-item {
-            background: var(--light-gray);
-            border-radius: 12px;
-            padding: 12px 16px;
-        }
-        .info-label {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--charcoal);
-            opacity: 0.7;
-            margin-bottom: 4px;
-        }
-        .info-value {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--dark-gray);
-        }
-
-        /* Status Badge */
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-        .status-active { background: var(--soft-green); color: var(--dark-gray); }
-        .status-archived { background: var(--light-gray); color: var(--charcoal); }
-
-        /* Table */
-        .table-container { overflow-x: auto; }
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th {
-            text-align: left; padding: 12px; background: var(--light-gray);
-            font-weight: 600; color: var(--dark-gray); font-size: 0.7rem;
-            text-transform: uppercase; border-bottom: 1px solid var(--border-light);
-        }
-        .data-table td { padding: 12px; border-bottom: 1px solid var(--border-light); color: var(--charcoal); font-size: 0.85rem; }
-        .data-table tr:hover td { background: var(--soft-blue-light); }
-
-        /* File Link */
-        .file-link {
-            color: var(--soft-blue);
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .file-link:hover { color: var(--teal); text-decoration: underline; }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: var(--charcoal);
-            opacity: 0.6;
-        }
-        .empty-state i { font-size: 2rem; margin-bottom: 12px; color: var(--soft-blue); }
-
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-top: 16px;
-        }
-        .btn-action {
-            background: var(--teal);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 10px;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-            font-size: 0.85rem;
-        }
-        .btn-action:hover { background: var(--teal-dark); transform: translateY(-1px); }
-        .btn-secondary-action {
-            background: var(--soft-blue);
-        }
-        .btn-secondary-action:hover { background: var(--soft-blue-dark); }
-
-        /* Responsive */
-        @media (max-width: 1024px) { .info-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
-            .main-content { margin-left: 0; padding: 20px; }
-            .top-bar { flex-direction: column; align-items: flex-start; gap: 16px; }
-            .patient-header { flex-direction: column; text-align: center; }
-            .action-buttons { justify-content: center; }
-        }
-    </style>
+    </script>
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-[#111827] text-slate-800 dark:text-slate-100 font-sans antialiased min-h-full transition-colors duration-200">
 
-<!-- Sidebar Navigation -->
-<aside class="sidebar">
-    <div class="sidebar-logo">
-        <h2>4ID Station Hospital</h2>
-        <p>Camp Evangelista</p>
-    </div>
-    <ul class="nav-menu">
-        <li class="nav-item"><a href="dashboard.php" class="nav-link"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a></li>
-        <li class="nav-item"><a href="patients.php" class="nav-link"><i class="fas fa-users"></i><span>Patients</span></a></li>
-        <li class="nav-item"><a href="queue-monitor.php" class="nav-link"><i class="fas fa-chart-line"></i><span>Queue Monitor</span></a></li>
-        <li class="nav-item"><a href="clinic-congestion.php" class="nav-link"><i class="fas fa-chart-simple"></i><span>Clinic Congestion</span></a></li>
-        <li class="nav-item"><a href="reports.php" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reports</span></a></li>
-        <li class="nav-item"><a href="users.php" class="nav-link"><i class="fas fa-users-cog"></i><span>User Management</span></a></li>
-        <li class="nav-item"><a href="login-monitor.php" class="nav-link"><i class="fas fa-history"></i><span>Login Monitor</span></a></li>
-        <li class="nav-item" style="margin-top: 20px; border-top: 1px solid var(--border-light); padding-top: 16px;">
-            <a href="../logout.php" class="nav-link" style="color: var(--light-coral);" onclick="return confirm('Are you sure you want to logout?')">
-                <i class="fas fa-sign-out-alt"></i><span>Logout</span>
-            </a>
-        </li>
-    </ul>
-</aside>
-
-<!-- Main Content -->
-<main class="main-content">
-    <div class="top-bar">
-        <div class="page-title">
-            <h1><i class="fas fa-user-circle"></i> Patient Details</h1>
-            <p>View complete patient information and medical records</p>
-        </div>
-        <div class="user-info">
-            <div class="date-time"><div class="date" id="currentDate"></div><div class="time" id="currentTime"></div></div>
-            <div class="user-avatar"><i class="fas fa-user-shield"></i></div>
-        </div>
-    </div>
-
-    <!-- Patient Header -->
-    <div class="patient-header">
-        <div class="patient-info">
-            <h2><?php echo htmlspecialchars($patient['first_name'] . ' ' . $patient['last_name']); ?></h2>
-            <p><i class="fas fa-id-card"></i> MRN: <?php echo htmlspecialchars($patient['mrn']); ?> | 
-               <i class="fas fa-calendar-alt"></i> Age: <?php echo calculateAge($patient['date_of_birth']); ?> years | 
-               <i class="fas fa-clock"></i> Registered: <?php echo date('M d, Y', strtotime($patient['created_at'])); ?></p>
-        </div>
+    <aside id="sidebar" class="fixed top-0 left-0 h-screen bg-white dark:bg-[#1f2937] border-r border-slate-300/90 dark:border-slate-700/80 shadow-xl md:shadow-none z-[1000] flex flex-col justify-between overflow-x-hidden transition-all duration-300 ease-in-out group/sidebar -translate-x-full md:translate-x-0 w-[260px] md:w-[80px] md:hover:w-[260px]">
         <div>
-            <span class="priority-badge" style="background: <?php echo $priority_info[$priority]['bg']; ?>; color: <?php echo $priority_info[$priority]['color']; ?>;">
-                <?php echo $priority_info[$priority]['text']; ?>
-            </span>
-            <span class="status-badge <?php echo $patient_status == 'Active' ? 'status-active' : 'status-archived'; ?>" style="margin-left: 8px;">
-                <i class="fas <?php echo $patient_status == 'Active' ? 'fa-check-circle' : 'fa-archive'; ?>"></i>
-                <?php echo $patient_status; ?>
-            </span>
+            <div class="p-4 border-b border-slate-300/90 dark:border-slate-700/60 mb-5 flex flex-col items-center justify-center min-h-[160px]">
+                <div class="hidden md:flex md:group-hover/sidebar:hidden flex-col items-center justify-center font-extrabold text-2xl tracking-wider text-sky-600 dark:text-sky-400 leading-tight select-none">
+                    <span>C</span><span>E</span><span>S</span><span>H</span>
+                </div>
+                <div class="flex md:hidden md:group-hover/sidebar:flex flex-col items-center">
+                    <img src="../assets/images/logo.png" alt="CESH Logo" class="w-21 h-21 object-contain rounded-xl mb-2.5" onerror="this.style.display='none'">
+                    <h2 class="text-slate-800 dark:text-slate-100 text-sm font-extrabold tracking-tight text-center whitespace-nowrap">4ID Station Hospital</h2>
+                    <p class="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest text-center whitespace-nowrap mt-1">Camp Evangelista</p>
+                </div>
+            </div>
+            
+            <nav class="px-3 md:group-hover/sidebar:px-4 transition-all duration-200">
+                <ul class="list-none p-0 space-y-1.5">
+                    <li>
+                        <a href="dashboard.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-tachometer-alt text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="patients.php" class="flex items-center rounded-xl font-semibold transition-all duration-150 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-l-4 border-sky-500 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-users text-base"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Patients</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="queue-monitor.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-chart-line text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Queue Monitor</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="clinic-congestion.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-chart-pie text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Clinic Congestion</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="reports.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-chart-bar text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Reports</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="users.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-users-cog text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">User Management</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="login-monitor.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                <i class="fas fa-history text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                            </div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Login Monitor</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
         </div>
-    </div>
+    </aside>
 
-    <!-- Action Buttons -->
-    <div class="action-buttons">
-        <a href="patient-edit.php?id=<?php echo $patient_id; ?>" class="btn-action btn-secondary-action">
-            <i class="fas fa-edit"></i> Edit Patient
-        </a>
-        <a href="medical_history.php?patient_id=<?php echo $patient_id; ?>" class="btn-action">
-            <i class="fas fa-notes-medical"></i> Medical History
-        </a>
-        <a href="patient-documents.php?patient_id=<?php echo $patient_id; ?>" class="btn-action">
-            <i class="fas fa-file-alt"></i> Documents
-        </a>
-        <a href="../staff/registration.php?edit=<?php echo $patient_id; ?>" class="btn-action">
-            <i class="fas fa-calendar-plus"></i> Schedule Appointment
-        </a>
-    </div>
+    <main class="min-h-screen ml-0 md:ml-[80px] px-6 sm:px-12 py-8 md:pl-14 lg:pl-16 transition-all duration-300 max-w-[1680px] mx-auto">
+        
+        <header class="flex flex-col sm:flex-row justify-between sm:items-center mb-8 pb-5 border-b border-slate-300/90 dark:border-slate-700/80 gap-4">
+            <div class="flex items-center gap-4">
+                <button id="mobileMenuBtn" class="md:hidden p-2.5 text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1f2937] border border-slate-300 rounded-xl shadow-sm">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <div>
+                    <h1 class="text-slate-900 dark:text-white text-2xl md:text-3xl font-extrabold tracking-tight mb-0.5">Patient Record Ledger</h1>
+                    <p class="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">Read-only profile archive registry and diagnostic ledger history</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center justify-between sm:justify-end gap-4 relative">
+                <div class="text-right text-xs hidden sm:block">
+                    <div class="text-slate-700 dark:text-slate-300 font-bold" id="currentDate"></div>
+                    <div class="text-sky-600 dark:text-sky-400 font-bold font-mono text-sm mt-0.5" id="currentTime"></div>
+                </div>
 
-    <!-- Patient Information Card -->
-    <div class="info-card">
-        <div class="card-header">
-            <h3><i class="fas fa-user-md"></i> Personal Information</h3>
-        </div>
-        <div class="card-body">
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label"><i class="fas fa-user"></i> Full Name</div>
-                    <div class="info-value"><?php echo htmlspecialchars($patient['first_name'] . ' ' . $patient['last_name']); ?></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label"><i class="fas fa-calendar-alt"></i> Date of Birth</div>
-                    <div class="info-value"><?php echo date('F d, Y', strtotime($patient['date_of_birth'])); ?> (<?php echo calculateAge($patient['date_of_birth']); ?> years)</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label"><i class="fas fa-venus-mars"></i> Gender</div>
-                    <div class="info-value"><?php echo $patient['gender']; ?></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label"><i class="fas fa-tag"></i> Patient Type</div>
-                    <div class="info-value"><?php echo ucfirst($patient['patient_type']); ?></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label"><i class="fas fa-phone"></i> Contact Number</div>
-                    <div class="info-value"><?php echo htmlspecialchars($patient['contact_number'] ?: '—'); ?></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label"><i class="fas fa-map-marker-alt"></i> Address</div>
-                    <div class="info-value"><?php echo htmlspecialchars($patient['address'] ?: '—'); ?></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label"><i class="fas fa-user-md"></i> Primary Physician</div>
-                    <div class="info-value"><?php echo htmlspecialchars($patient['primary_physician'] ?: '—'); ?></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label"><i class="fas fa-heart"></i> Priority Conditions</div>
-                    <div class="info-value">
-                        <?php 
-                        $conditions = [];
-                        if ($patient['is_pwd']) $conditions[] = 'PWD';
-                        if ($patient['is_senior']) $conditions[] = 'Senior Citizen';
-                        if ($patient['is_pregnant']) $conditions[] = 'Pregnant';
-                        echo !empty($conditions) ? implode(', ', $conditions) : 'None';
-                        ?>
+                <button id="themeToggleBtn" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl transition-all shadow-sm" title="Toggle Visual Mode">
+                    <i id="themeToggleIcon" class="fas fa-moon text-base"></i>
+                </button>
+
+                <div class="relative">
+                    <button id="profileMenuBtn" class="w-10 h-10 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400 border border-slate-300 dark:border-slate-700 shadow-sm hover:border-sky-500 dark:hover:border-sky-400 focus:outline-none transition-all duration-150">
+                        <i class="fas fa-user-md text-lg"></i>
+                    </button>
+                    
+                    <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl shadow-xl z-[1100]">
+                        <div class="p-3 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-850/40 rounded-t-xl">
+                            <p class="text-xs font-bold text-slate-900 dark:text-white truncate">System Administrator</p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">HOSP-HQ COM</p>
+                        </div>
+                        <div class="p-2">
+                            <a href="../logout.php" onclick="return confirm('Confirm Dashboard Exit?')" class="flex items-center gap-2.5 w-full text-left px-3 py-2.5 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors">
+                                <i class="fas fa-power-off text-sm"></i>
+                                <span>Logout Session</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
+        </header>
 
-    <!-- Medical History Card -->
-    <div class="info-card">
-        <div class="card-header">
-            <h3><i class="fas fa-notes-medical"></i> Recent Medical History</h3>
-            <a href="medical_history.php?patient_id=<?php echo $patient_id; ?>" style="color: var(--soft-blue); font-size: 0.75rem;">View All →</a>
+        <div class="mb-5">
+            <a href="patients.php" class="inline-flex items-center gap-2 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl shadow-sm transition-all">
+                <i class="fas fa-arrow-left text-sky-500"></i> Return to Registry
+            </a>
         </div>
-        <div class="card-body">
-            <?php if (empty($medical_history)): ?>
-                <div class="empty-state">
-                    <i class="fas fa-notes-medical"></i>
-                    <p>No medical history records found</p>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start mb-8">
+            
+            <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl shadow-sm overflow-hidden lg:col-span-1">
+                <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20">
+                    <h3 class="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2"><i class="fas fa-id-card text-sky-500 text-sm"></i> Demographic Summary</h3>
                 </div>
-            <?php else: ?>
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Diagnosis</th>
-                                <th>Medications</th>
-                                <th>Allergies</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($medical_history as $record): ?>
-                                <tr>
-                                    <td><?php echo date('M d, Y', strtotime($record['recorded_at'])); ?></td>
-                                    <td><?php echo nl2br(htmlspecialchars(substr($record['diagnosis'] ?? '', 0, 100))); ?></td>
-                                    <td><?php echo htmlspecialchars(substr($record['medications'] ?? '', 0, 50)); ?></td>
-                                    <td><?php echo htmlspecialchars(substr($record['allergies'] ?? '', 0, 50)); ?></td>
+                <div class="p-5 flex flex-col items-center border-b border-slate-200 dark:border-slate-700/50 text-center bg-slate-50/40 dark:bg-slate-800/10">
+                    <div class="w-16 h-16 bg-sky-50 dark:bg-sky-500/10 border border-sky-100 dark:border-sky-500/20 text-sky-600 dark:text-sky-400 rounded-full flex items-center justify-center text-2xl font-black shadow-inner mb-3">
+                        <?= strtoupper(substr($patient['first_name'] ?? '', 0, 1) . substr($patient['last_name'] ?? '', 0, 1)); ?>
+                    </div>
+                    <h2 class="text-slate-900 dark:text-white text-base font-extrabold tracking-tight leading-snug"><?= htmlspecialchars(($patient['first_name'] ?? '') . ' ' . ($patient['last_name'] ?? '')); ?></h2>
+                    <span class="mt-1.5 px-2.5 py-0.5 rounded-md text-[9px] font-mono font-extrabold uppercase tracking-widest bg-slate-200/60 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300/40 dark:border-slate-600/30">ID: #<?= str_pad($patient['id'], 5, '0', STR_PAD_LEFT); ?></span>
+                </div>
+                
+                <div class="p-5 space-y-4">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Military Rank Classification</span>
+                        <p class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            <?= htmlspecialchars(($patient['rank_classification'] ?? $patient['rank'] ?? '') ?: 'N/A (Civilian)'); ?>
+                        </p>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Military Serial Number</span>
+                        <p class="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
+                            <?= htmlspecialchars(($patient['serial_number'] ?? $patient['serial_no'] ?? '') ?: 'Non-Military Personnel'); ?>
+                        </p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gender Index</span>
+                            <p class="text-xs font-bold text-slate-800 dark:text-slate-200"><?= htmlspecialchars($patient['gender'] ?? 'N/A'); ?></p>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Date of Birth</span>
+                            <p class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                <?= isset($patient['date_of_birth']) ? date('M d, Y', strtotime($patient['date_of_birth'])) : 'N/A'; ?>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mobile Communications Line</span>
+                        <p class="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
+                            <?= htmlspecialchars(($patient['phone_number'] ?? $patient['contact_no'] ?? $patient['phone'] ?? '') ?: 'None Reported'); ?>
+                        </p>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Permanent Residential Address</span>
+                        <p class="text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed"><?= htmlspecialchars($patient['address'] ?? 'No address specified'); ?></p>
+                    </div>
+                </div>
+            </section>
+
+            <div class="lg:col-span-2 space-y-6">
+                
+                <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl shadow-sm overflow-hidden">
+                    <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20">
+                        <h3 class="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2"><i class="fas fa-history text-sky-500 text-sm"></i> Chronological Queue Log History</h3>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse text-left">
+                            <thead>
+                                <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-300 dark:border-slate-700/80 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                                    <th class="py-3 px-4">Registry Stamp</th>
+                                    <th class="py-3 px-4">Clinic Operational Block</th>
+                                    <th class="py-3 px-4 text-center">Token Code</th>
+                                    <th class="py-3 px-4 text-center">Priority</th>
+                                    <th class="py-3 px-4 text-right">Fulfillment Status</th>
                                 </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-slate-700/60 text-xs font-medium text-slate-700 dark:text-slate-300">
+                                <?php if (empty($queue_history)): ?>
+                                    <tr>
+                                        <td colspan="5" class="py-8 text-center text-slate-400 font-bold uppercase tracking-wider">No history tracking metrics discovered for this profile map.</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($queue_history as $entry): ?>
+                                        <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td class="py-3 px-4 text-slate-500 dark:text-slate-400">
+                                                <?= date('M d, Y h:i A', strtotime($entry['registered_at'])); ?>
+                                            </td>
+                                            <td class="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                                                <?= htmlspecialchars($entry['clinic_name']); ?>
+                                            </td>
+                                            <td class="py-3 px-4 text-center font-mono font-bold text-sky-600 dark:text-sky-400">
+                                                <?= htmlspecialchars($entry['queue_number']); ?>
+                                            </td>
+                                            <td class="py-3 px-4 text-center">
+                                                <?php if (($entry['priority_level'] ?? '') === 'PR1'): ?>
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200/40">PR1</span>
+                                                <?php elseif (($entry['priority_level'] ?? '') === 'PR2'): ?>
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200/40">PR2</span>
+                                                <?php else: ?>
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200/40">PR3</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="py-3 px-4 text-right">
+                                                <?php $status = $entry['status'] ?? 'pending'; ?>
+                                                <?php if ($status === 'completed'): ?>
+                                                    <span class="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md"><i class="fas fa-check-circle mr-1"></i> Completed</span>
+                                                <?php elseif ($status === 'in_progress' || $status === 'serving'): ?>
+                                                    <span class="text-[10px] font-bold uppercase tracking-wide text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-500/10 px-2 py-0.5 rounded-md"><i class="fas fa-spinner animate-spin mr-1"></i> Serving</span>
+                                                <?php elseif ($status === 'pending'): ?>
+                                                    <span class="text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-md"><i class="fas fa-clock mr-1"></i> Pending</span>
+                                                <?php else: ?>
+                                                    <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">Skipped</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
-    <!-- Queue History Card -->
-    <div class="info-card">
-        <div class="card-header">
-            <h3><i class="fas fa-history"></i> Queue History</h3>
-            <span><i class="fas fa-clock"></i> Last 20 visits</span>
-        </div>
-        <div class="card-body">
-            <?php if (empty($queue_history)): ?>
-                <div class="empty-state">
-                    <i class="fas fa-inbox"></i>
-                    <p>No queue history found</p>
-                </div>
-            <?php else: ?>
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Time</th>
-                                <th>Queue #</th>
-                                <th>Clinic</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($queue_history as $queue): ?>
-                                <tr>
-                                    <td><?php echo date('M d, Y', strtotime($queue['registered_at'])); ?></td>
-                                    <td><?php echo date('h:i A', strtotime($queue['registered_at'])); ?></td>
-                                    <td><strong><?php echo htmlspecialchars($queue['queue_number']); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($queue['clinic_name']); ?></td>
-                                    <td>
-                                        <span class="status-badge" style="background: <?php 
-                                            echo $queue['priority_level'] == 'PR1' ? '#FF6F61' : ($queue['priority_level'] == 'PR2' ? '#FFB84D' : '#A4D1B1'); 
-                                        ?>; color: <?php 
-                                            echo $queue['priority_level'] == 'PR1' ? 'white' : '#333'; 
-                                        ?>;">
-                                            <?php echo $queue['priority_level']; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="status-badge" style="background: <?php 
-                                            echo $queue['status'] == 'completed' ? '#A4D1B1' : ($queue['status'] == 'in-progress' ? '#4A90E2' : '#FFB84D'); 
-                                        ?>;">
-                                            <?php echo ucfirst($queue['status']); ?>
-                                        </span>
-                                    </td>
+                <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl shadow-sm overflow-hidden">
+                    <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20">
+                        <h3 class="text-xs font-bold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2"><i class="fas fa-folder-open text-sky-500 text-sm"></i> Secure Vault Digital Records Archive</h3>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse text-left">
+                            <thead>
+                                <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-300 dark:border-slate-700/80 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                                    <th class="py-3 px-4">Upload Stamp</th>
+                                    <th class="py-3 px-4">Cryptographic File Identifier</th>
+                                    <th class="py-3 px-4">Document Clearance Type</th>
+                                    <th class="py-3 px-4 text-right">Data Endpoint Path Link</th>
                                 </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-slate-700/60 text-xs font-medium text-slate-700 dark:text-slate-300">
+                                <?php if (empty($documents)): ?>
+                                    <tr>
+                                        <td colspan="4" class="py-8 text-center text-slate-400 font-bold uppercase tracking-wider">No attached clinical clearance paperwork uploaded to this ledger.</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($documents as $doc): ?>
+                                        <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td class="py-3 px-4 text-slate-500 dark:text-slate-400">
+                                                <?= date('M d, Y', strtotime($doc['uploaded_at'])); ?>
+                                            </td>
+                                            <td class="py-3 px-4 font-bold text-slate-900 dark:text-white truncate max-w-[180px]">
+                                                <?= htmlspecialchars($doc['file_name']); ?>
+                                            </td>
+                                            <td class="py-3 px-4">
+                                                <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/30 dark:border-slate-700/50">
+                                                    <?= htmlspecialchars($doc['document_type'] ?: 'Generic Asset'); ?>
+                                                </span>
+                                            </td>
+                                            <td class="py-3 px-4 text-right">
+                                                <a href="<?= htmlspecialchars($doc['file_path']); ?>" target="_blank" class="inline-flex items-center gap-1.5 font-bold text-[10px] text-sky-600 dark:text-sky-400 border border-slate-300 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 bg-white dark:bg-[#111827] rounded-lg px-2.5 py-1.5 transition-all shadow-sm">
+                                                    <i class="fas fa-external-link-alt text-[9px]"></i> View Document
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
         </div>
-    </div>
+    </main>
 
-    <!-- Documents Card -->
-    <div class="info-card">
-        <div class="card-header">
-            <h3><i class="fas fa-file-alt"></i> Recent Documents</h3>
-            <a href="patient-documents.php?patient_id=<?php echo $patient_id; ?>" style="color: var(--soft-blue); font-size: 0.75rem;">View All →</a>
-        </div>
-        <div class="card-body">
-            <?php if (empty($documents)): ?>
-                <div class="empty-state">
-                    <i class="fas fa-file-alt"></i>
-                    <p>No documents found</p>
-                </div>
-            <?php else: ?>
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Uploaded</th>
-                                <th>File Name</th>
-                                <th>Type</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($documents as $doc): ?>
-                                <tr>
-                                    <td><?php echo date('M d, Y', strtotime($doc['uploaded_at'])); ?></td>
-                                    <td><?php echo htmlspecialchars($doc['file_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($doc['document_type'] ?: 'Document'); ?></td>
-                                    <td>
-                                        <a href="<?php echo htmlspecialchars($doc['file_path']); ?>" target="_blank" class="file-link">
-                                            <i class="fas fa-download"></i> View
-                                        </a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</main>
+    <script>
+        // System Native Clock Integration
+        function updateDateTime() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', options);
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
 
-<script>
-    function updateDateTime() {
-        const now = new Date();
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', options);
-        document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    }
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
-</script>
+        // Responsive Mobile Left Drawer Toggles
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        if (mobileMenuBtn && sidebar) {
+            mobileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sidebar.classList.toggle('-translate-x-full');
+            });
+        }
+        document.addEventListener('click', (e) => {
+            if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+                if (mobileMenuBtn && !mobileMenuBtn.contains(e.target)) {
+                    sidebar.classList.add('-translate-x-full');
+                }
+            }
+        });
+
+        // Administrator Action Panel Profile Context Dropdowns
+        const profileMenuBtn = document.getElementById('profileMenuBtn');
+        const profileDropdown = document.getElementById('profileDropdown');
+        if (profileMenuBtn && profileDropdown) {
+            profileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileDropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', () => profileDropdown.classList.add('hidden'));
+        }
+
+        // Dark/Light Visual Theme Core Manager Rules
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const themeToggleIcon = document.getElementById('themeToggleIcon');
+        
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark'); 
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
+        } else {
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-base text-slate-500';
+        }
+        
+        if(themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', () => {
+                if (document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.remove('dark'); 
+                    localStorage.setItem('theme', 'light'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-base text-slate-500';
+                } else {
+                    document.documentElement.classList.add('dark'); 
+                    localStorage.setItem('theme', 'dark'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
+                }
+            });
+        }
+    </script>
 </body>
 </html>

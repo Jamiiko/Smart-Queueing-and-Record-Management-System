@@ -113,7 +113,7 @@ $avg_wait_time = round(array_sum(array_column($clinics, 'avg_wait_time')) / max(
                     <span>C</span><span>E</span><span>S</span><span>H</span>
                 </div>
                 <div class="flex md:hidden md:group-hover/sidebar:flex flex-col items-center animate-[fadeIn_0.2s_ease-in-out]">
-                    <img src="../assets/images/logo.png" alt="Logo" class="max-w-[110px] h-auto rounded mb-3 dark:brightness-110 dark:drop-shadow-[0_0_8px_rgba(56,189,248,0.2)]" onerror="this.style.display='none'">
+                    <img src="../assets/images/logo.png" alt="Logo" class="max-w-[200px] h-auto rounded mb-3 dark:brightness-110 dark:drop-shadow-[0_0_8px_rgba(56,189,248,0.2)]" onerror="this.style.display='none'">
                     <h2 class="text-slate-800 dark:text-slate-200 text-sm font-extrabold tracking-tight text-center whitespace-nowrap">4ID Station Hospital</h2>
                     <p class="text-slate-400 dark:text-slate-500 text-[0.65rem] font-bold uppercase tracking-widest text-center whitespace-nowrap mt-0.5">Camp Evangelista</p>
                 </div>
