@@ -871,7 +871,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
 
                     <div class="portal-link-wrapper">
-                        <a href="../patient-portal/track-queue.php" class="btn-portal">
+                        <a href="patient-portal\track-queue.php" class="btn-portal">
                             <i class="fas fa-users"></i>
                             <span>Launch External Patient Portal</span>
                             <i class="fas fa-arrow-right"></i>

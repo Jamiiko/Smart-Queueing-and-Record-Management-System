@@ -212,18 +212,18 @@ $avg_wait_time = round(array_sum(array_column($clinics, 'avg_wait_time')) / max(
                 </button>
 
                 <div class="relative">
-                    <button id="profileMenuBtn" class="w-9 h-9 bg-white dark:bg-[#1e293b] rounded-full flex items-center justify-center text-slate-500 border border-slate-200 dark:border-slate-700 hover:border-sky-500 transition-all">
-                        <i class="fas fa-user-md text-base"></i>
+                    <button id="profileMenuBtn" class="w-11 h-11 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400 border border-slate-300 dark:border-slate-700 shadow-sm hover:border-sky-500 dark:hover:border-sky-400 focus:outline-none transition-all duration-150">
+                        <i class="fas fa-user-md text-lg"></i>
                     </button>
                     
-                    <div id="profileDropdown" class="hidden absolute right-0 mt-2.5 w-56 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-[1100]">
-                        <div class="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 rounded-t-xl">
-                            <p class="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">System Administrator</p>
-                            <p class="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">HOSP-HQ COM</p>
+                    <div id="profileDropdown" class="hidden absolute right-0 mt-2.5 w-60 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl shadow-xl z-[1100] animate-[modalFadeIn_0.15s_ease-out]">
+                        <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 rounded-t-xl">
+                            <p class="text-xs font-bold text-slate-900 dark:text-white truncate">System Administrator</p>
+                            <p class="text-[0.65rem] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">HOSP-HQ COM</p>
                         </div>
                         <div class="p-1.5">
-                            <a href="../logout.php" onclick="return confirm('Confirm Dashboard Exit?')" class="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors">
-                                <i class="fas fa-power-off text-xs"></i>
+                            <a href="../logout.php" onclick="return confirm('Confirm Dashboard Exit?')" class="flex items-center gap-2.5 w-full text-left px-3 py-2.5 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors">
+                                <i class="fas fa-power-off text-sm"></i>
                                 <span>Logout Session</span>
                             </a>
                         </div>
