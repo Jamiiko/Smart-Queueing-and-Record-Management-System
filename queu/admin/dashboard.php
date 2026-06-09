@@ -289,51 +289,45 @@ $total_completed = array_sum(array_column($clinics, 'completed'));
 
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mb-8">
             <?php foreach ($clinics as $clinic): ?>
-            <div class="relative bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-tl-2xl rounded-tr-lg rounded-bl-lg rounded-br-lg overflow-hidden shadow-sm hover:shadow-md hover:border-sky-500/80 dark:hover:border-sky-400/80 transition-all duration-200 cursor-pointer h-[105px] group flex flex-col justify-between" 
+            <div class="relative bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-tl-2xl rounded-tr-lg rounded-bl-lg rounded-br-lg shadow-sm hover:shadow-md hover:border-sky-500/80 dark:hover:border-sky-400/80 transition-all duration-200 cursor-pointer min-h-[135px] group flex flex-col p-3.5 justify-between overflow-hidden" 
+                 title="<?php echo htmlspecialchars($clinic['name']); ?>"
                  onclick="viewClinicQueue(<?php echo $clinic['id']; ?>, '<?php echo htmlspecialchars($clinic['name']); ?>')">
                 
-                <div class="p-3.5 flex flex-col justify-between h-full transition-all duration-300 group-hover:opacity-0 group-hover:scale-95">
-                    <div class="flex items-start justify-between gap-1.5">
-                        <span class="font-extrabold text-slate-800 dark:text-slate-200 text-[0.75rem] uppercase tracking-wide truncate block max-w-[85%]">
-                            <?php echo htmlspecialchars($clinic['name']); ?>
-                        </span>
-                        <?php if ($clinic['waiting_count'] > 0): ?>
-                            <span class="w-2 h-2 rounded-full bg-sky-500 animate-pulse shrink-0 mt-0.5"></span>
-                        <?php endif; ?>
-                    </div>
+                <div class="flex items-start justify-between gap-2 z-10 w-full mb-2">
+                    <span class="font-extrabold text-slate-800 dark:text-slate-200 text-[0.72rem] md:text-[0.75rem] uppercase tracking-wide line-clamp-2 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors duration-150 break-words">
+                        <?php echo htmlspecialchars($clinic['name']); ?>
+                    </span>
+                    <?php if ($clinic['waiting_count'] > 0): ?>
+                        <span class="w-2 h-2 rounded-full bg-sky-500 animate-pulse shrink-0 mt-0.5"></span>
+                    <?php endif; ?>
+                </div>
+                
+                <div class="relative h-12 w-full mt-auto overflow-hidden z-10">
                     
-                    <div class="flex items-baseline justify-between mt-auto">
+                    <div class="absolute inset-0 flex items-baseline justify-between transition-all duration-200 transform opacity-100 scale-100 group-hover:opacity-0 group-hover:scale-95 group-hover:pointer-events-none">
                         <span class="text-slate-400 text-[0.625rem] font-bold uppercase tracking-wider">In Queue</span>
                         <span class="text-2xl font-black text-sky-500 dark:text-sky-400 font-mono leading-none">
                             <?php echo $clinic['waiting_count']; ?>
                         </span>
                     </div>
-                </div>
 
-                <div class="absolute inset-0 bg-slate-900/95 dark:bg-[#111827]/95 p-3 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 flex flex-col justify-between z-10 scale-105 group-hover:scale-100 rounded-tl-2xl rounded-tr-lg rounded-bl-lg rounded-br-lg">
-                    <div class="text-[0.7rem] font-black text-sky-400 dark:text-sky-400 uppercase tracking-wider truncate border-b border-slate-700/50 pb-1.5">
-                        <?php echo htmlspecialchars($clinic['name']); ?>
+                    <div class="absolute inset-0 flex flex-col justify-between transition-all duration-200 transform opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto">
+                        <div class="grid grid-cols-2 gap-x-2 text-[0.65rem] border-b border-slate-100 dark:border-slate-700/40 pb-1 mb-1">
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Active:</span>
+                                <span class="font-mono font-bold text-slate-700 dark:text-slate-300"><?php echo $clinic['in_progress']; ?></span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Done:</span>
+                                <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400"><?php echo $clinic['completed']; ?></span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center text-[0.625rem] font-bold text-sky-600 dark:text-sky-400">
+                            <span class="flex items-center gap-0.5">Monitor <i class="fas fa-arrow-right text-[6px]"></i></span>
+                            <span class="text-amber-500 dark:text-amber-400 font-mono font-semibold">Est: <?php echo $clinic['waiting_count'] * 10; ?>m</span>
+                        </div>
                     </div>
                     
-                    <div class="space-y-1 my-1">
-                        <div class="flex justify-between items-center text-[0.68rem]">
-                            <span class="text-slate-400 font-medium">In Progress</span>
-                            <span class="font-mono font-bold text-white"><?php echo $clinic['in_progress']; ?></span>
-                        </div>
-                        <div class="flex justify-between items-center text-[0.68rem]">
-                            <span class="text-slate-400 font-medium">Completed</span>
-                            <span class="font-mono font-bold text-slate-300"><?php echo $clinic['completed']; ?></span>
-                        </div>
-                        <div class="flex justify-between items-center text-[0.68rem] pt-0.5 border-t border-slate-800">
-                            <span class="text-slate-400 font-medium">Est. Wait</span>
-                            <span class="font-mono font-bold text-amber-400"><?php echo $clinic['waiting_count'] * 10; ?>m</span>
-                        </div>
-                    </div>
-
-                    <div class="text-[0.625rem] font-bold text-sky-400 flex items-center justify-center gap-1 bg-sky-500/10 rounded py-1 mt-auto">
-                        <span>Open Monitor</span>
-                        <i class="fas fa-arrow-right text-[8px]"></i>
-                    </div>
                 </div>
 
             </div>

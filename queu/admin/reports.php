@@ -282,9 +282,9 @@ foreach ($trends as $t) {
                     </div>
                 </div>
                 <div class="w-full lg:w-auto">
-                    <button type="submit" class="w-full bg-sky-600 dark:bg-sky-500 text-white font-bold text-xs tracking-wide uppercase px-6 py-3 rounded-xl hover:bg-sky-700 dark:hover:bg-sky-600 transition-all flex items-center justify-center gap-2 shadow-sm">
-                        <i class="fas fa-chart-simple text-sm"></i> Generate Report
-                    </button>
+                    <button type="submit" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2.5 px-6 rounded-xl transition-all shadow-sm flex justify-center items-center gap-2 w-full sm:w-auto">
+    <i class="fas fa-file-export"></i> <span>Generate Report</span>
+</button>
                 </div>
             </form>
         </section>

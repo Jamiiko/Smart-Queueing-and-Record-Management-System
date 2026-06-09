@@ -161,8 +161,17 @@ $stmt->bindParam(':clinic_id', $clinic_id);
 $stmt->execute();
 $stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Get batch information
+// ============================================
+// BATCH INFORMATION RETRIEVAL
+// ============================================
 $batch_info = $queueManager->getCurrentBatch();
+
+// Extract or compute elements for the 4-column single-cell tracker framework
+$curr_batch_val = $batch_info['current_batch'] ?? $batch_info['start_time'] ?? date('h:00 A');
+$patients_batch_val = $batch_info['patients_count'] ?? $stats['waiting'] ?? 0;
+$capacity_hour = $clinic['capacity_per_hour'] ?? 20;
+$remaining_slots_val = $batch_info['remaining_slots'] ?? max(0, $capacity_hour - ($stats['total'] ?? 0));
+$next_batch_val = $batch_info['next_batch'] ?? $batch_info['end_time'] ?? date('h:00 A', strtotime('+1 hour'));
 
 // Get completed patients today
 $query = "SELECT q.*, p.first_name, p.last_name, p.patient_type,
@@ -187,888 +196,647 @@ if ($stats['total'] > 0) {
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($clinic['name']); ?> | Staff Dashboard | Camp Evangelista</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <meta http-equiv="refresh" content="30">
     
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        :root {
-            --soft-blue: #4A90E2;
-            --soft-blue-dark: #3A7BC8;
-            --soft-blue-light: #E7F3FB;
-            --teal: #009688;
-            --teal-dark: #00796B;
-            --soft-green: #A4D1B1;
-            --warm-yellow: #FFB84D;
-            --light-coral: #FF6F61;
-            --white: #FFFFFF;
-            --light-gray: #F2F2F2;
-            --dark-gray: #212121;
-            --charcoal: #333333;
-            --border-light: #E5E9F0;
-            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--light-gray);
-            color: var(--charcoal);
-            line-height: 1.5;
-        }
-
-        /* Sidebar Navigation */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 280px;
-            height: 100vh;
-            background: var(--white);
-            box-shadow: var(--shadow-md);
-            z-index: 1000;
-            overflow-y: auto;
-            border-right: 1px solid var(--border-light);
-        }
-
-        .sidebar-logo {
-            padding: 28px 24px;
-            border-bottom: 1px solid var(--border-light);
-            margin-bottom: 24px;
-        }
-
-        .sidebar-logo h2 {
-            color: var(--soft-blue);
-            font-size: 1.1rem;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-            margin-bottom: 4px;
-        }
-
-        .sidebar-logo p {
-            color: var(--charcoal);
-            font-size: 0.7rem;
-            opacity: 0.7;
-        }
-
-        .nav-menu {
-            list-style: none;
-            padding: 0 16px;
-        }
-
-        .nav-item {
-            margin-bottom: 4px;
-        }
-
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            border-radius: 12px;
-            color: var(--charcoal);
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .nav-link i {
-            width: 22px;
-            color: var(--soft-blue);
-            font-size: 1.1rem;
-        }
-
-        .nav-link:hover {
-            background: var(--soft-blue-light);
-            color: var(--soft-blue);
-        }
-
-        .nav-link.active {
-            background: var(--soft-blue);
-            color: white;
-        }
-
-        .nav-link.active i {
-            color: white;
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: 280px;
-            padding: 28px 36px;
-            min-height: 100vh;
-        }
-
-        /* Top Bar */
-        .top-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 32px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .page-title h1 {
-            color: var(--dark-gray);
-            font-size: 1.75rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: 4px;
-        }
-
-        .page-title p {
-            color: var(--charcoal);
-            font-size: 0.85rem;
-            opacity: 0.7;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .date-time {
-            text-align: right;
-            font-size: 0.85rem;
-        }
-
-        .date {
-            color: var(--charcoal);
-            font-weight: 500;
-        }
-
-        .time {
-            color: var(--soft-blue);
-            font-weight: 600;
-        }
-
-        .user-avatar {
-            width: 44px;
-            height: 44px;
-            background: var(--soft-blue-light);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--soft-blue);
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .user-avatar:hover {
-            background: var(--soft-blue);
-            color: white;
-        }
-
-        /* Dropdown Menu */
-        .dropdown-menu {
-            display: none;
-            position: absolute;
-            right: 0;
-            top: 50px;
-            background: var(--white);
-            border-radius: 16px;
-            box-shadow: var(--shadow-lg);
-            min-width: 200px;
-            z-index: 1000;
-            overflow: hidden;
-            border: 1px solid var(--border-light);
-        }
-
-        .dropdown-menu.show {
-            display: block;
-        }
-
-        .dropdown-header {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .dropdown-header strong {
-            color: var(--dark-gray);
-        }
-
-        .dropdown-header small {
-            color: var(--charcoal);
-            font-size: 0.7rem;
-        }
-
-        .dropdown-divider {
-            height: 1px;
-            background: var(--border-light);
-            margin: 8px 0;
-        }
-
-        .dropdown-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 16px;
-            color: var(--light-coral);
-            text-decoration: none;
-            transition: background 0.2s;
-        }
-
-        .dropdown-item:hover {
-            background: var(--light-gray);
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 16px;
-            margin-bottom: 32px;
-        }
-
-        .stat-card {
-            background: var(--white);
-            border-radius: 20px;
-            padding: 20px 12px;
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--border-light);
-            transition: all 0.2s ease;
-            text-align: center;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .stat-icon {
-            width: 48px;
-            height: 48px;
-            background: var(--soft-blue-light);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--soft-blue);
-            font-size: 1.3rem;
-            margin: 0 auto 12px;
-        }
-
-        .stat-value {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-            margin-bottom: 4px;
-        }
-
-        .stat-label {
-            color: var(--charcoal);
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        /* Batch Bar */
-        .batch-bar {
-            background: var(--white);
-            border-radius: 20px;
-            padding: 20px 24px;
-            margin-bottom: 32px;
-            border: 1px solid var(--border-light);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .batch-info {
-            display: flex;
-            gap: 40px;
-            flex-wrap: wrap;
-        }
-
-        .batch-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .batch-label {
-            font-size: 0.7rem;
-            color: var(--charcoal);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .batch-value {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--dark-gray);
-        }
-
-        .batch-value.highlight {
-            color: var(--soft-blue);
-            font-size: 1.2rem;
-        }
-
-        .progress-container {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            min-width: 200px;
-        }
-
-        .progress-bar-bg {
-            flex: 1;
-            height: 8px;
-            background: var(--light-gray);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: var(--teal);
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-
-        .progress-stats {
-            font-size: 0.75rem;
-            color: var(--charcoal);
-        }
-
-        /* Now Serving */
-        .now-serving {
-            background: linear-gradient(135deg, var(--soft-blue) 0%, var(--teal) 100%);
-            border-radius: 24px;
-            padding: 28px;
-            margin-bottom: 32px;
-            text-align: center;
-            color: white;
-        }
-
-        .now-serving-label {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            opacity: 0.9;
-        }
-
-        .now-serving-number {
-            font-size: 4rem;
-            font-weight: 800;
-            margin: 12px 0;
-            letter-spacing: 2px;
-        }
-
-        .now-serving-name {
-            font-size: 1.2rem;
-            font-weight: 500;
-            margin-bottom: 12px;
-        }
-
-        .now-serving-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        /* Panel */
-        .panel {
-            background: var(--white);
-            border-radius: 20px;
-            border: 1px solid var(--border-light);
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-            margin-bottom: 24px;
-        }
-
-        .panel-header {
-            padding: 18px 24px;
-            border-bottom: 1px solid var(--border-light);
-            background: var(--white);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-
-        .panel-header h3 {
-            color: var(--dark-gray);
-            font-size: 1rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .panel-header h3 i {
-            color: var(--soft-blue);
-        }
-
-        /* Buttons */
-        .btn-primary {
-            background: var(--teal);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-            font-size: 0.85rem;
-        }
-
-        .btn-primary:hover {
-            background: var(--teal-dark);
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-            background: var(--light-gray);
-            color: var(--charcoal);
-            border: 1px solid var(--border-light);
-            padding: 10px 20px;
-            border-radius: 12px;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-            text-decoration: none;
-        }
-
-        .btn-secondary:hover {
-            background: var(--border-light);
-        }
-
-        /* Queue Cards */
-        .queue-list {
-            padding: 20px 24px;
-        }
-
-        .queue-card {
-            background: var(--white);
-            border-radius: 16px;
-            padding: 16px 20px;
-            margin-bottom: 12px;
-            border: 1px solid var(--border-light);
-            border-left: 4px solid;
-            transition: all 0.2s;
-        }
-
-        .queue-card:hover {
-            transform: translateX(4px);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .queue-card.PR1 { border-left-color: var(--light-coral); }
-        .queue-card.PR2 { border-left-color: var(--warm-yellow); }
-        .queue-card.PR3 { border-left-color: var(--soft-green); }
-        .queue-card.calling { background: var(--soft-blue-light); animation: pulse 1s infinite; }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-
-        .queue-row {
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-        }
-
-        .priority-badge {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 1.1rem;
-        }
-
-        .priority-PR1 { background: var(--light-coral); color: white; }
-        .priority-PR2 { background: var(--warm-yellow); color: var(--dark-gray); }
-        .priority-PR3 { background: var(--soft-green); color: var(--dark-gray); }
-
-        .queue-details { flex: 1; }
-        .queue-number { font-size: 1.1rem; font-weight: 700; color: var(--dark-gray); }
-        .batch-tag { background: var(--light-gray); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; margin-left: 8px; }
-        .patient-name { font-weight: 600; color: var(--dark-gray); margin: 4px 0; }
-        .patient-info { font-size: 0.7rem; color: var(--charcoal); }
-
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-        .status-waiting { background: var(--warm-yellow); color: var(--dark-gray); }
-        .status-called { background: var(--soft-blue-light); color: var(--soft-blue); }
-        .status-progress { background: var(--soft-blue); color: white; }
-
-        .btn-icon {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 8px 12px;
-            border-radius: 10px;
-            transition: all 0.2s;
-            font-size: 0.75rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-weight: 500;
-        }
-        .btn-call { background: var(--warm-yellow); color: var(--dark-gray); }
-        .btn-start { background: var(--soft-blue); color: white; }
-        .btn-complete { background: var(--teal); color: white; }
-.btn-result { background: var(--soft-blue); color: white; }
-.btn-result:hover { background: var(--soft-blue-dark); }
-        /* Info Cards */
-        .info-card {
-            background: var(--white);
-            border-radius: 20px;
-            border: 1px solid var(--border-light);
-            overflow: hidden;
-            margin-bottom: 24px;
-        }
-
-        .info-card .card-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-light);
-            background: var(--light-gray);
-            font-weight: 600;
-            color: var(--dark-gray);
-        }
-
-        .info-card .card-body { padding: 20px; }
-
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-        .info-label { color: var(--charcoal); font-size: 0.8rem; }
-        .info-value { font-weight: 600; color: var(--dark-gray); }
-
-        .completed-list { list-style: none; }
-        .completed-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid var(--border-light);
-        }
-        .completed-item:last-child { border-bottom: none; }
-        .completed-number { font-weight: 700; color: var(--soft-blue); }
-        .completed-name { font-size: 0.8rem; }
-        .completed-time { font-size: 0.7rem; color: var(--charcoal); }
-
-        /* Alerts */
-        .alert {
-            padding: 14px 20px;
-            border-radius: 16px;
-            margin-bottom: 24px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .alert-success { background: var(--soft-green); color: var(--dark-gray); border-left: 3px solid var(--teal); }
-        .alert-danger { background: #FEF2F0; color: var(--light-coral); border-left: 3px solid var(--light-coral); }
-
-        .empty-state {
-            text-align: center;
-            padding: 48px;
-            color: var(--charcoal);
-            opacity: 0.6;
-        }
-
-        /* Responsive */
-        @media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 1024px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
-            .main-content { margin-left: 0; padding: 20px; }
-            .stats-grid { grid-template-columns: 1fr; }
-            .batch-bar { flex-direction: column; align-items: flex-start; }
-            .queue-row { flex-direction: column; align-items: flex-start; }
+        /* Support style rules for arbitrary modal animation config injections */
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
         }
     </style>
+    <meta http-equiv="refresh" content="30">
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-[#111827] text-slate-800 dark:text-slate-100 font-sans antialiased min-h-full transition-colors duration-200">
 
-<!-- Sidebar Navigation -->
-<aside class="sidebar">
-    <div class="sidebar-logo">
-        <h2>4ID Station Hospital</h2>
-        <p>Camp Evangelista</p>
-    </div>
-    <ul class="nav-menu">
-        <li class="nav-item">
-            <a href="clinic-dashboard.php?clinic_id=<?php echo $clinic_id; ?>" class="nav-link active">
-                <i class="fas fa-tachometer-alt"></i>
-                <span>Dashboard</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="registration.php" class="nav-link">
-                <i class="fas fa-user-plus"></i>
-                <span>Register Patient</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="patient-queue.php" class="nav-link">
-                <i class="fas fa-list"></i>
-                <span>All Clinics</span>
-            </a>
-        </li>
-        <li class="nav-item">
-            <a href="../patient-portal/track-queue.php" target="_blank" class="nav-link">
-                <i class="fas fa-search"></i>
-                <span>Patient Portal</span>
-            </a>
-        </li>
-        <li class="nav-item" style="margin-top: auto; border-top: 1px solid var(--border-light); padding-top: 16px;">
-            <div style="padding: 12px 16px; background: var(--soft-blue-light); border-radius: 12px; margin-bottom: 8px;">
-                <div style="font-size: 0.7rem; color: var(--charcoal);">Logged in as</div>
-                <div style="font-weight: 600; color: var(--dark-gray);"><?php echo $_SESSION['full_name'] ?? $_SESSION['username']; ?></div>
-                <div style="font-size: 0.7rem; color: var(--soft-blue);">
-                    <i class="fas fa-tag"></i> Role: <?php echo ucfirst($_SESSION['role']); ?>
+    <aside id="sidebar" class="fixed top-0 left-0 h-screen bg-white dark:bg-[#1f2937] border-r border-slate-300/60 dark:border-slate-700/80 shadow-xl md:shadow-none z-[1000] flex flex-col justify-between overflow-x-hidden transition-all duration-300 ease-in-out group/sidebar -translate-x-full md:translate-x-0 w-[260px] md:w-[80px] md:hover:w-[260px]">
+        <div class="flex flex-col justify-between h-full w-full">
+            <div>
+                <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 mb-5 flex flex-col items-center justify-center min-h-[120px]">
+                    <div class="hidden md:flex md:group-hover/sidebar:hidden flex-col items-center justify-center font-extrabold text-xl tracking-wider text-sky-600 dark:text-sky-400 leading-tight select-none">
+                        <span>C</span><span>E</span><span>S</span><span>H</span>
+                    </div>
+                    <div class="flex md:hidden md:group-hover/sidebar:flex flex-col items-center">
+                        <img src="../assets/images/logo.png" alt="CESH Logo" class="w-60 h-60 object-contain rounded-xl mb-2" onerror="this.style.display='none'">
+                        <h2 class="text-slate-800 dark:text-slate-100 text-sm font-extrabold tracking-tight text-center whitespace-nowrap">4ID Station Hospital</h2>
+                        <p class="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest text-center whitespace-nowrap mt-1">Camp Evangelista</p>
+                    </div>
+                </div>
+                
+                <nav class="px-3 md:group-hover/sidebar:px-4 transition-all duration-200">
+                    <ul class="space-y-1.5 list-none p-0">
+                        <li>
+                            <a href="clinic-dashboard.php" class="flex items-center rounded-xl font-semibold transition-all duration-150 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-l-4 border-sky-500 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 group/link">
+                                <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                    <i class="fas fa-desktop text-base"></i>
+                                </div>
+                                <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Dashboard</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="registration.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 group/link">
+                                <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                    <i class="fas fa-user-plus text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                                </div>
+                                <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Registration</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="patient-queue.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 group/link">
+                                <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                    <i class="fas fa-list text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                                </div>
+                                <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">All Clinics Queue</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="search-patient.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-4 group/link">
+                                <div class="w-6 h-6 flex items-center justify-center shrink-0">
+                                    <i class="fas fa-search text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
+                                </div>
+                                <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Search Patient</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+
+            <div class="p-4 border-t border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/30 flex items-center gap-3 w-full shrink-0">
+               <div class="w-10 h-10 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center text-sky-600 dark:text-sky-400 border border-slate-200 dark:border-slate-600 shrink-0 shadow-sm md:shadow-none md:group-hover/sidebar:shadow-sm">
+    <i class="fas fa-user-md"></i>
+</div>
+                <div class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 transition-opacity duration-200 overflow-hidden select-none">
+                    <p class="text-[9px] uppercase tracking-widest text-slate-400 dark:text-slate-500 font-extrabold leading-none">Logged in as</p>
+                    <p class="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px] mt-1.5 leading-tight"><?php echo htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username']); ?></p>
+                    <p class="text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider mt-0.5"><?php echo htmlspecialchars($_SESSION['role']); ?></p>
                 </div>
             </div>
-        </li>
-        <li class="nav-item">
-            <a href="profile.php" class="nav-link">
-                <i class="fas fa-user-circle"></i>
+        </div>
+    </aside>
+
+    <main class="min-h-screen ml-0 md:ml-[80px] hover:translate-x-0 transition-all duration-300 px-4 sm:px-8 py-8 lg:pl-12 max-w-[1600px] mx-auto">
+        
+        <header class="flex flex-col sm:flex-row justify-between sm:items-center mb-8 pb-5 border-b border-slate-200 dark:border-slate-700/80 gap-4">
+            <div class="flex items-center gap-4">
+                <button id="mobileMenuBtn" class="md:hidden p-2 text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl shadow-sm">
+                    <i class="fas fa-bars text-lg"></i>
+                </button>
+                <div>
+                    <h1 class="text-slate-900 dark:text-white text-2xl font-extrabold tracking-tight flex items-center gap-2">
+                        <?php echo htmlspecialchars($clinic['name']); ?>
+                    </h1>
+                    <p class="text-slate-500 dark:text-slate-400 text-xs font-medium">Staff Dashboard • Manage patient queue and consultations</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center justify-between sm:justify-end gap-4 relative">
+                <div class="text-right text-xs hidden sm:block">
+                    <div class="text-slate-700 dark:text-slate-300 font-bold" id="currentDate"></div>
+                    <div class="text-sky-600 dark:text-sky-400 font-bold font-mono text-xs mt-0.5" id="currentTime"></div>
+                </div>
+
+                <button id="themeToggleBtn" class="w-11 h-11 flex items-center justify-center bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl transition-all shadow-sm text-slate-500 dark:text-amber-400" title="Toggle Adaptive Theme Light/Dark Mode">
+                    <i id="themeToggleIcon" class="fas fa-moon text-sm"></i>
+                </button>
+
+                <div class="relative">
+    <button id="profileMenuBtn" class="w-11 h-11 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400 border border-slate-300 dark:border-slate-700 shadow-sm hover:border-sky-500 dark:hover:border-sky-400 focus:outline-none transition-all duration-150">
+        <i class="fas fa-user-md text-lg"></i>
+    </button>
+    
+    <div id="profileDropdown" class="hidden absolute right-0 mt-2.5 w-60 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 rounded-xl shadow-xl z-[1100] animate-[modalFadeIn_0.15s_ease-out]">
+        <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 rounded-t-xl">
+            <p class="text-xs font-bold text-slate-900 dark:text-white truncate">
+                <?php echo htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username']); ?>
+            </p>
+            <p class="text-[0.65rem] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">
+                <?php echo htmlspecialchars(ucfirst($_SESSION['role'])); ?>
+            </p>
+        </div>
+        
+        <div class="p-1.5 flex flex-col gap-1">
+            <a href="profile.php" class="flex items-center gap-2.5 w-full text-left px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-colors">
+                <i class="fas fa-user-circle text-sm text-slate-400 dark:text-slate-500"></i>
                 <span>My Profile</span>
             </a>
-        </li>
-        <li class="nav-item">
-            <a href="../logout.php" class="nav-link" style="color: var(--light-coral);" onclick="return confirm('Are you sure you want to logout?')">
-                <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
+
+            <a href="../logout.php" onclick="return confirm('Confirm Dashboard Exit?')" class="flex items-center gap-2.5 w-full text-left px-3 py-2.5 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors">
+                <i class="fas fa-power-off text-sm"></i>
+                <span>Logout Session</span>
             </a>
-        </li>
-    </ul>
-</aside>
-
-<!-- Main Content -->
-<main class="main-content">
-    <!-- Top Bar -->
-    <div class="top-bar">
-        <div class="page-title">
-            <h1><?php echo htmlspecialchars($clinic['name']); ?></h1>
-            <p>Staff Dashboard • Manage patient queue and consultations</p>
         </div>
-        <div class="user-info">
-            <div class="date-time">
-                <div class="date" id="currentDate"></div>
-                <div class="time" id="currentTime"></div>
+    </div>
+</div>
             </div>
-            <div class="user-dropdown" style="position: relative;">
-                <div class="user-avatar" onclick="toggleDropdown()">
-                    <i class="fas fa-user-md"></i>
-                </div>
-                <div id="dropdownMenu" class="dropdown-menu">
-                    <div class="dropdown-header">
-                        <strong><?php echo $_SESSION['full_name'] ?? $_SESSION['username']; ?></strong><br>
-                        <small><?php echo ucfirst($_SESSION['role']); ?></small>
-                    </div>
-                    <div class="dropdown-divider"></div>
-                    <a href="profile.php" class="dropdown-item">
-                        <i class="fas fa-user-circle"></i> My Profile
-                    </a>
-                    <a href="../logout.php" class="dropdown-item" onclick="return confirm('Are you sure you want to logout?')">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </a>
-                </div>
+        </header>
+
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert bg-rose-50 dark:bg-rose-500/10 border border-rose-300 dark:border-rose-500/30 text-rose-800 dark:text-rose-400 rounded-xl p-4 text-xs font-bold uppercase tracking-wide mb-6 flex items-center gap-2.5 shadow-sm">
+                <i class="fas fa-exclamation-circle text-base text-rose-500"></i> <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['next_queue'])): ?>
+            <div class="alert bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-400 rounded-xl p-4 text-xs font-bold uppercase tracking-wide mb-6 flex items-center gap-2.5 shadow-sm">
+                <i class="fas fa-check-circle text-base text-emerald-500"></i> <?php echo $_SESSION['next_queue']; unset($_SESSION['next_queue']); ?>
+            </div>
+        <?php endif; ?>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div class="w-10 h-10 bg-slate-100 dark:bg-slate-700/50 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 text-lg mb-2"><i class="fas fa-users"></i></div>
+                <div class="text-xl font-extrabold text-slate-900 dark:text-white font-mono leading-none"><?php echo $stats['total'] ?? 0; ?></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">Total Today</div>
+            </div>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div class="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 text-lg mb-2"><i class="fas fa-clock"></i></div>
+                <div class="text-xl font-extrabold text-amber-600 dark:text-amber-400 font-mono leading-none"><?php echo $stats['waiting'] ?? 0; ?></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">Waiting</div>
+            </div>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div class="w-10 h-10 bg-sky-50 dark:bg-sky-500/10 rounded-xl flex items-center justify-center text-sky-500 text-lg mb-2"><i class="fas fa-bullhorn"></i></div>
+                <div class="text-xl font-extrabold text-sky-600 dark:text-sky-400 font-mono leading-none"><?php echo $stats['called'] ?? 0; ?></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">Called</div>
+            </div>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-500 text-lg mb-2"><i class="fas fa-user-md"></i></div>
+                <div class="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 font-mono leading-none"><?php echo $stats['in_progress'] ?? 0; ?></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">In Consult</div>
+            </div>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div class="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500 text-lg mb-2"><i class="fas fa-check-circle"></i></div>
+                <div class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono leading-none"><?php echo $stats['completed'] ?? 0; ?></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">Completed</div>
+            </div>
+            <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center text-center transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div class="w-10 h-10 bg-rose-50 dark:bg-rose-500/10 rounded-xl flex items-center justify-center text-rose-500 text-lg mb-2"><i class="fas fa-stopwatch"></i></div>
+                <div class="text-xl font-extrabold text-rose-600 dark:text-rose-400 font-mono leading-none"><?php echo round($stats['avg_time'] ?? 0); ?><span class="text-xs ml-1">m</span></div>
+                <div class="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider mt-1">Avg Wait</div>
             </div>
         </div>
-    </div>
 
-    <!-- Alerts -->
-    <?php if (isset($_SESSION['error'])): ?>
-        <div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> <?php echo $_SESSION['error']; unset($_SESSION['error']); ?></div>
-    <?php endif; ?>
-    <?php if (isset($_SESSION['next_queue'])): ?>
-        <div class="alert alert-success"><i class="fas fa-check-circle"></i> <?php echo $_SESSION['next_queue']; unset($_SESSION['next_queue']); ?></div>
-    <?php endif; ?>
-
-    <!-- Statistics -->
-    <div class="stats-grid">
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-users"></i></div><div class="stat-value"><?php echo $stats['total'] ?? 0; ?></div><div class="stat-label">Total Today</div></div>
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-clock"></i></div><div class="stat-value"><?php echo $stats['waiting'] ?? 0; ?></div><div class="stat-label">Waiting</div></div>
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-bell"></i></div><div class="stat-value"><?php echo $stats['called'] ?? 0; ?></div><div class="stat-label">Called</div></div>
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-play-circle"></i></div><div class="stat-value"><?php echo $stats['in_progress'] ?? 0; ?></div><div class="stat-label">In Progress</div></div>
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-check-circle"></i></div><div class="stat-value"><?php echo $stats['completed'] ?? 0; ?></div><div class="stat-label">Completed</div></div>
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-hourglass-half"></i></div><div class="stat-value"><?php echo round($stats['avg_time'] ?? 0); ?> min</div><div class="stat-label">Avg Time</div></div>
-    </div>
-
-    <!-- Batch Bar -->
-    <div class="batch-bar">
-        <div class="batch-info">
-            <div class="batch-item"><span class="batch-label">Current Batch</span><span class="batch-value highlight"><?php echo date('h:00 A', strtotime($batch_info['current_hour'])); ?></span></div>
-            <div class="batch-item"><span class="batch-label">Patients in Batch</span><span class="batch-value"><?php echo $batch_info['current_count']; ?>/20</span></div>
-            <div class="batch-item"><span class="batch-label">Remaining Slots</span><span class="batch-value"><?php echo $batch_info['remaining_slots']; ?></span></div>
-            <div class="batch-item"><span class="batch-label">Next Batch</span><span class="batch-value"><?php echo date('h:00 A', strtotime($batch_info['next_hour'])); ?></span></div>
-        </div>
-        <div class="progress-container">
-            <div class="progress-bar-bg"><div class="progress-fill" style="width: <?php echo ($batch_info['current_count'] / 20) * 100; ?>%"></div></div>
-            <div class="progress-stats"><?php echo round(($batch_info['current_count'] / 20) * 100); ?>%</div>
-        </div>
-    </div>
-
-    <!-- Now Serving -->
-    <?php 
-    $current_patient = null;
-    foreach ($queue as $patient) { if ($patient['status'] == 'in-progress') { $current_patient = $patient; break; } }
-    ?>
-    <?php if ($current_patient): ?>
-    <div class="now-serving">
-        <div class="now-serving-label"><i class="fas fa-bell"></i> NOW SERVING</div>
-        <div class="now-serving-number"><?php echo $current_patient['queue_number']; ?></div>
-        <div class="now-serving-name"><?php echo $current_patient['first_name'] . ' ' . $current_patient['last_name']; ?></div>
-        <div><span class="now-serving-badge"><?php echo $current_patient['priority_level']; ?></span></div>
-    </div>
-    <?php endif; ?>
-
-    <div class="row" style="display: flex; gap: 24px; flex-wrap: wrap;">
-        <!-- Queue List -->
-        <div style="flex: 2; min-width: 300px;">
-            <div class="panel">
-                <div class="panel-header">
-                    <h3><i class="fas fa-list-ol"></i> Current Queue</h3>
-                    <div style="display: flex; gap: 12px;">
-                        <form method="POST"><button type="submit" name="call_next" class="btn-primary"><i class="fas fa-bell"></i> Call Next Patient</button></form>
-                        <a href="registration.php" class="btn-secondary"><i class="fas fa-user-plus"></i> Register</a>
+        <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-2xl shadow-sm p-5 mb-6 transition-colors">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 text-center sm:text-left divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-700/60">
+                
+                <div class="flex items-center gap-3.5 justify-center sm:justify-start pb-4 lg:pb-0">
+                    <div class="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0"><i class="fas fa-hourglass-start"></i></div>
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Current Batch</p>
+                        <p class="font-mono font-extrabold text-sm text-slate-900 dark:text-white mt-0.5"><?php echo htmlspecialchars($curr_batch_val); ?></p>
                     </div>
                 </div>
-                <div class="queue-list">
-                    <?php if (empty($queue)): ?>
-                        <div class="empty-state"><i class="fas fa-check-circle"></i><p>No patients in queue</p><small>Queue is empty. New patients will appear here when registered.</small></div>
-                    <?php else: ?>
-                        <?php foreach ($queue as $patient): ?>
-                            <div class="queue-card <?php echo $patient['priority_level']; ?> <?php echo $patient['status'] == 'called' ? 'calling' : ''; ?>">
-                                <div class="queue-row">
-                                    <div class="priority-badge priority-<?php echo $patient['priority_level']; ?>"><?php echo $patient['priority_level']; ?></div>
-                                    <div class="queue-details">
-                                        <div><span class="queue-number"><?php echo $patient['queue_number']; ?></span><span class="batch-tag">Batch <?php echo $patient['batch_number']; ?>:00</span></div>
-                                        <div class="patient-name"><?php echo $patient['last_name'] . ', ' . $patient['first_name']; ?> <?php if ($patient['patient_type'] == 'military'): ?><i class="fas fa-shield-alt" style="color: var(--light-coral);"></i><?php endif; ?></div>
-                                        <div class="patient-info">Age: <?php $dob = new DateTime($patient['date_of_birth']); echo (new DateTime())->diff($dob)->y; ?> yrs | Registered: <?php echo date('h:i A', strtotime($patient['registered_at'])); ?></div>
-                                    </div>
-                                    <div><span class="status-badge status-<?php echo $patient['status']; ?>"><?php echo ucfirst(str_replace('-', ' ', $patient['status'])); ?></span><div class="patient-info" style="margin-top: 4px;">Pos: <?php echo $patient['position_in_batch']; ?>/batch • Wait: <?php echo $patient['waiting_minutes']; ?> min</div></div>
-                                    <div>
-                                        <?php if ($patient['status'] == 'waiting'): ?>
-                                            <form method="POST"><input type="hidden" name="queue_id" value="<?php echo $patient['id']; ?>"><input type="hidden" name="status" value="called"><button type="submit" name="update_status" class="btn-icon btn-call"><i class="fas fa-bell"></i> Call</button></form>
-                                        <?php elseif ($patient['status'] == 'called'): ?>
-                                            <form method="POST"><input type="hidden" name="queue_id" value="<?php echo $patient['id']; ?>"><input type="hidden" name="status" value="in-progress"><button type="submit" name="update_status" class="btn-icon btn-start"><i class="fas fa-play"></i> Start</button></form>
-                                        <?php elseif ($patient['status'] == 'in-progress'): ?>
-                                            <form method="POST"><input type="hidden" name="queue_id" value="<?php echo $patient['id']; ?>"><input type="hidden" name="status" value="completed"><button type="submit" name="update_status" class="btn-icon btn-complete"><i class="fas fa-check"></i> Complete</button></form>
-                                        <?php endif; ?>
-                                        <?php if ($patient['status'] == 'in-progress'): ?>
-    <div style="display: flex; gap: 8px;">
-        <form method="POST"><input type="hidden" name="queue_id" value="<?php echo $patient['id']; ?>"><input type="hidden" name="status" value="completed"><button type="submit" name="update_status" class="btn-icon btn-complete"><i class="fas fa-check"></i> Complete</button></form>
-        <a href="submit-result.php?clinic_id=<?php echo $clinic_id; ?>&queue_id=<?php echo $patient['id']; ?>" class="btn-icon btn-result" style="background: var(--soft-blue); color: white;">
-            <i class="fas fa-file-alt"></i> Submit Result
-        </a>
-    </div>
-<?php endif; ?>
+
+                <div class="flex items-center gap-3.5 justify-center sm:justify-start pt-4 lg:pt-0 lg:pl-6">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0"><i class="fas fa-user-clock"></i></div>
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Patients Batch</p>
+                        <p class="font-mono font-extrabold text-sm text-slate-900 dark:text-white mt-0.5"><?php echo htmlspecialchars($patients_batch_val); ?> Active</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3.5 justify-center sm:justify-start pt-4 lg:pt-0 lg:pl-6">
+                    <div class="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0"><i class="fas fa-chart-pie"></i></div>
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Remaining Slots</p>
+                        <p class="font-mono font-extrabold text-sm text-amber-600 dark:text-amber-400 mt-0.5"><?php echo htmlspecialchars($remaining_slots_val); ?> Slots Open</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3.5 justify-center sm:justify-start pt-4 lg:pt-0 lg:pl-6">
+                    <div class="w-9 h-9 rounded-xl bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0"><i class="fas fa-step-forward"></i></div>
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Next Batch</p>
+                        <p class="font-mono font-extrabold text-sm text-slate-500 dark:text-slate-400 mt-0.5"><?php echo htmlspecialchars($next_batch_val); ?></p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            
+            <div class="lg:col-span-2">
+                <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-2xl shadow-sm overflow-hidden transition-colors">
+                    <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <h3 class="text-xs font-extrabold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2">
+                            <i class="fas fa-list-ol text-sky-500 text-sm"></i> Current Active Queue
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <form method="POST" class="inline">
+                                <button type="submit" name="call_next" class="bg-sky-600 hover:bg-sky-500 text-white border border-transparent text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer">
+                                    <i class="fas fa-bell"></i> Call Next Patient
+                                </button>
+                            </form>
+                            <a href="registration.php" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                                <i class="fas fa-user-plus"></i> Register
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-slate-50/30 dark:bg-[#1f2937]">
+                        <?php if (empty($queue)): ?>
+                            <div class="text-center py-12 text-slate-400 dark:text-slate-500">
+                                <i class="fas fa-check-circle text-4xl mb-3 text-slate-300 dark:text-slate-600"></i>
+                                <p class="font-bold uppercase tracking-wider text-xs">No patients in queue</p>
+                                <small class="text-[10px] opacity-80 mt-1 block">Queue is empty. New patients will appear here when registered.</small>
+                            </div>
+                        <?php else: ?>
+                            <?php foreach ($queue as $patient): 
+                                $prColor = $patient['priority_level'] == 'PR1' ? 'border-rose-500 bg-rose-50 dark:bg-rose-500/5' : 
+                                          ($patient['priority_level'] == 'PR2' ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/5' : 
+                                           'border-emerald-500 bg-white dark:bg-slate-800/40');
+                                           
+                                $prBadge = $patient['priority_level'] == 'PR1' ? 'bg-rose-500 text-white' : 
+                                          ($patient['priority_level'] == 'PR2' ? 'bg-amber-500 text-white' : 
+                                           'bg-emerald-500 text-white');
+                            ?>
+                                <div class="p-4 border border-slate-200 dark:border-slate-700/60 border-l-4 rounded-xl shadow-sm mb-3 transition-all hover:shadow-md $prColor; <?php echo $patient['status'] == 'called' ? 'ring-2 ring-sky-500/50 animate-pulse' : ''; ?>">
+                                    <div class="flex flex-col sm:flex-row justify-between sm:items-start lg:items-center gap-3">
+                                        
+                                        <div class="flex items-start gap-4">
+                                            <div class="flex flex-col items-center justify-center shrink-0 mt-1">
+                                                <span class="px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider shadow-sm <?php echo $prBadge; ?>">
+                                                    <?php echo $patient['priority_level']; ?>
+                                                </span>
+                                            </div>
+                                            
+                                            <div class="flex flex-col gap-0.5">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="font-mono font-extrabold text-base text-slate-900 dark:text-white"><?php echo $patient['queue_number']; ?></span>
+                                                    <span class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                                                        Batch <?php echo $patient['batch_number']; ?>:00
+                                                    </span>
+                                                </div>
+                                                
+                                                <h4 class="font-bold text-slate-800 dark:text-slate-200 text-sm">
+                                                    <?php echo htmlspecialchars($patient['last_name'] . ', ' . $patient['first_name']); ?>
+                                                    <?php if ($patient['patient_type'] == 'military'): ?>
+                                                        <i class="fas fa-shield-alt text-sky-500 text-[10px] ml-1" title="Military Personnel"></i>
+                                                    <?php endif; ?>
+                                                </h4>
+                                                
+                                                <div class="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1">
+                                                    Age: <?php $dob = new DateTime($patient['date_of_birth']); echo (new DateTime())->diff($dob)->y; ?> yrs | 
+                                                    Registered: <?php echo date('h:i A', strtotime($patient['registered_at'])); ?>
+                                                </div>
+                                                
+                                                <div class="flex flex-wrap gap-1 mt-1">
+                                                    <?php if ($patient['is_pwd']): ?><span class="text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded font-bold">PWD</span><?php endif; ?>
+                                                    <?php if ($patient['is_senior']): ?><span class="text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded font-bold">Senior</span><?php endif; ?>
+                                                    <?php if ($patient['is_pregnant']): ?><span class="text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded font-bold">Pregnant</span><?php endif; ?>
+                                                </div>
+                                                
+                                                <div class="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1">
+                                                    <i class="fas fa-clock mr-1 text-sky-500"></i> Waiting: <?php echo $patient['waiting_minutes']; ?> mins | <span class="font-bold">Pos: <?php echo $patient['position_in_batch']; ?></span>
+                                                </div>
+                                                
+                                                <div class="flex items-center gap-2 mt-2">
+                                                    <?php 
+                                                        $statusDisplay = ucfirst($patient['status']);
+                                                        $statusBg = $patient['status'] == 'completed' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 
+                                                                  ($patient['status'] == 'in-progress' ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400' : 
+                                                                   'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400');
+                                                    ?>
+                                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border border-transparent <?php echo $statusBg; ?>">
+                                                        <?php echo $statusDisplay; ?>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="flex items-center sm:justify-end gap-1.5 shrink-0 mt-3 sm:mt-0 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 h-max">
+                                            
+                                            <form method="POST" class="inline m-0">
+                                                <input type="hidden" name="queue_id" value="<?php echo $patient['id']; ?>">
+                                                <input type="hidden" name="status" value="called">
+                                                <button type="submit" name="update_status" 
+                                                    class="w-8 h-8 rounded-md flex items-center justify-center transition-all <?php echo $patient['status'] == 'called' ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-sky-100 hover:bg-sky-500 dark:bg-sky-500/20 dark:hover:bg-sky-500 text-sky-600 dark:text-sky-400 hover:text-white cursor-pointer'; ?>" 
+                                                    <?php echo $patient['status'] == 'called' ? 'disabled' : ''; ?> title="Call Patient">
+                                                    <i class="fas fa-bullhorn text-xs"></i>
+                                                </button>
+                                            </form>
+                                            
+                                            <form method="POST" class="inline m-0">
+                                                <input type="hidden" name="queue_id" value="<?php echo $patient['id']; ?>">
+                                                <input type="hidden" name="status" value="in-progress">
+                                                <button type="submit" name="update_status" 
+                                                    class="w-8 h-8 rounded-md flex items-center justify-center transition-all <?php echo $patient['status'] == 'in-progress' ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-indigo-100 hover:bg-indigo-500 dark:bg-indigo-500/20 dark:hover:bg-indigo-500 text-indigo-600 dark:text-indigo-400 hover:text-white cursor-pointer'; ?>" 
+                                                    <?php echo $patient['status'] == 'in-progress' ? 'disabled' : ''; ?> title="Start Consult">
+                                                    <i class="fas fa-play text-xs"></i>
+                                                </button>
+                                            </form>
+                                            
+                                            <form method="POST" class="inline m-0">
+                                                <input type="hidden" name="queue_id" value="<?php echo $patient['id']; ?>">
+                                                <input type="hidden" name="status" value="completed">
+                                                <button type="submit" name="update_status" 
+                                                    class="w-8 h-8 rounded-md flex items-center justify-center transition-all <?php echo $patient['status'] == 'completed' ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-emerald-100 hover:bg-emerald-500 dark:bg-emerald-500/20 dark:hover:bg-emerald-500 text-emerald-600 dark:text-emerald-400 hover:text-white cursor-pointer'; ?>" 
+                                                    <?php echo $patient['status'] == 'completed' ? 'disabled' : ''; ?> title="Complete">
+                                                    <i class="fas fa-check text-xs"></i>
+                                                </button>
+                                            </form>
+                                            
+                                        </div>
+                                        
                                     </div>
                                 </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sidebar Info -->
-        <div style="flex: 1; min-width: 280px;">
-            <div class="info-card">
-                <div class="card-header"><i class="fas fa-bolt"></i> Quick Actions</div>
-                <div class="card-body">
-                    <a href="registration.php" class="btn-primary" style="width: 100%; margin-bottom: 12px; justify-content: center;"><i class="fas fa-user-plus"></i> Register New Patient</a>
-                    <a href="patient-queue.php" class="btn-secondary" style="width: 100%; margin-bottom: 12px; justify-content: center;"><i class="fas fa-list"></i> View All Clinics</a>
-                    <button onclick="location.reload()" class="btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-sync"></i> Refresh</button>
-                </div>
-            </div>
-
-            <div class="info-card">
-                <div class="card-header"><i class="fas fa-info-circle"></i> Clinic Information</div>
-                <div class="card-body">
-                    <div class="info-row"><span class="info-label">Capacity</span><span class="info-value"><?php echo $clinic['capacity_per_hour']; ?> patients/hour</span></div>
-                    <div class="info-row"><span class="info-label">Current Load</span><span class="info-value"><?php echo ($stats['waiting'] + $stats['called'] + $stats['in_progress']); ?> patients</span></div>
-                    <div class="info-row"><span class="info-label">Est. Wait Time</span><span class="info-value"><?php echo ($stats['waiting'] + $stats['called']) * 10; ?> minutes</span></div>
-                    <div class="info-row"><span class="info-label">Completion Rate</span><span class="info-value"><?php echo $completion_rate; ?>%</span></div>
-                </div>
-            </div>
-
-            <div class="info-card">
-                <div class="card-header"><i class="fas fa-history"></i> Recently Completed</div>
-                <div class="card-body">
-                    <?php if (empty($completed_patients)): ?>
-                        <p style="color: var(--charcoal); opacity: 0.6; text-align: center;">No completed patients yet today</p>
-                    <?php else: ?>
-                        <ul class="completed-list">
-                            <?php foreach ($completed_patients as $completed): ?>
-                                <li class="completed-item"><div><span class="completed-number"><?php echo $completed['queue_number']; ?></span><div class="completed-name"><?php echo $completed['first_name'] . ' ' . $completed['last_name']; ?></div></div><div class="completed-time"><?php echo $completed['completed_time']; ?></div></li>
                             <?php endforeach; ?>
-                        </ul>
-                    <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
+
+            <div class="lg:col-span-1 space-y-6">
+                
+                <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-2xl shadow-sm overflow-hidden transition-colors">
+                    <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20">
+                        <h3 class="text-xs font-extrabold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2">
+                            <i class="fas fa-bolt text-amber-500 text-sm"></i> Quick Actions
+                        </h3>
+                    </div>
+                    <div class="p-4 flex flex-col gap-2.5">
+                        <a href="search-patient.php" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-search"></i> Search Patient Directory
+                        </a>
+                        <a href="patient-queue.php" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-list"></i> View All Clinics Tracker
+                        </a>
+                        <button onclick="location.reload()" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-sync-alt"></i> Manual Refresh Interface
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-2xl shadow-sm overflow-hidden transition-colors">
+                    <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20">
+                        <h3 class="text-xs font-extrabold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2">
+                            <i class="fas fa-info-circle text-sky-500 text-sm"></i> Clinic Information
+                        </h3>
+                    </div>
+                    <div class="p-4 space-y-3 text-xs">
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-700/50">
+                            <span class="text-slate-500 dark:text-slate-400 font-bold">Capacity</span>
+                            <span class="font-mono font-bold text-slate-800 dark:text-slate-200"><?php echo $clinic['capacity_per_hour']; ?> patients/hour</span>
+                        </div>
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-700/50">
+                            <span class="text-slate-500 dark:text-slate-400 font-bold">Current Load</span>
+                            <span class="font-mono font-bold text-slate-800 dark:text-slate-200"><?php echo $stats['waiting']; ?> waiting</span>
+                        </div>
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-700/50">
+                            <span class="text-slate-500 dark:text-slate-400 font-bold">Completion Rate</span>
+                            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400"><?php echo $completion_rate; ?>%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-2xl shadow-sm overflow-hidden transition-colors">
+                    <div class="p-4 border-b border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20">
+                        <h3 class="text-xs font-extrabold uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-2">
+                            <i class="fas fa-check-double text-emerald-500 text-sm"></i> Recently Cleared (<?php echo count($completed_patients); ?>)
+                        </h3>
+                    </div>
+                    
+                    <div class="p-0">
+                        <?php if (empty($completed_patients)): ?>
+                            <div class="p-6 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                No completions recorded yet.
+                            </div>
+                        <?php else: ?>
+                            <ul class="divide-y divide-slate-100 dark:divide-slate-700/50 list-none m-0 p-0">
+                                <?php foreach ($completed_patients as $completed): ?>
+                                    <li class="p-3 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                        <div class="flex items-center gap-2.5">
+                                            <span class="font-mono font-bold text-[10px] text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-100 dark:border-sky-500/20">
+                                                <?php echo $completed['queue_number']; ?>
+                                            </span>
+                                            <span class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                <?php echo htmlspecialchars($completed['last_name'] . ', ' . substr($completed['first_name'], 0, 1) . '.'); ?>
+                                            </span>
+                                        </div>
+                                        <div class="text-[10px] font-mono text-slate-400 font-medium">
+                                            <?php echo $completed['completed_time']; ?>
+                                        </div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+            </div>
         </div>
-    </div>
-</main>
 
-<script>
-    function updateDateTime() {
-        const now = new Date();
-        document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    }
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
+    </main>
 
-    function toggleDropdown() {
-        document.getElementById('dropdownMenu').classList.toggle('show');
-    }
-    document.addEventListener('click', function(e) {
-        const dropdown = document.getElementById('dropdownMenu');
-        const avatar = document.querySelector('.user-avatar');
-        if (dropdown && avatar && !avatar.contains(e.target) && !dropdown.contains(e.target)) {
-            dropdown.classList.remove('show');
+    <script>
+        // System Hardware Integration Clock Realtime Module
+        function updateDateTime() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', options);
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         }
-    });
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
 
-    setTimeout(() => {
-        document.querySelectorAll('.alert').forEach(alert => { alert.style.opacity = '0'; setTimeout(() => alert.remove(), 500); });
-    }, 5000);
-</script>
+        // Auto-dismiss alerts safely
+        setTimeout(() => {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.style.transition = 'all 0.4s ease';
+                alert.style.opacity = '0';
+                alert.style.transform = 'translateY(-10px)';
+                setTimeout(() => alert.remove(), 400);
+            });
+        }, 5000);
+
+        // Responsive Mobile Left Drawer Toggles
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        if (mobileMenuBtn && sidebar) {
+            mobileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sidebar.classList.toggle('-translate-x-full');
+            });
+            document.addEventListener('click', (e) => {
+                if (!sidebar.classList.contains('-translate-x-full') && !sidebar.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
+                    sidebar.classList.add('-translate-x-full');
+                }
+            });
+        }
+
+        // Dynamic Profile Menu Panel Dropdowns
+        const profileMenuBtn = document.getElementById('profileMenuBtn');
+        const profileDropdown = document.getElementById('profileDropdown');
+        if (profileMenuBtn && profileDropdown) {
+            profileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileDropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', () => profileDropdown.classList.add('hidden'));
+        }
+
+        // Light/Dark System Theme Matrix Rules
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const themeToggleIcon = document.getElementById('themeToggleIcon');
+        
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark'); 
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-sm text-amber-400';
+        } else {
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-sm text-slate-500';
+        }
+        
+        if(themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', () => {
+                if (document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.remove('dark'); 
+                    localStorage.setItem('theme', 'light'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-sm text-slate-500';
+                } else {
+                    document.documentElement.classList.add('dark'); 
+                    localStorage.setItem('theme', 'dark'); 
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-sm text-amber-400';
+                }
+            });
+        }
+
+        // Auto page refresh (30 seconds)
+        setTimeout(function() {
+            window.location.reload();
+        }, 30000);
+        
+        // ============================================
+        // AUTO-LOGOUT FRAMEWORK FOR INACTIVITY
+        // ============================================
+        const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 mins
+        let inactivityTimer;
+        let warningTimer;
+        let warningShown = false;
+
+        function resetInactivityTimer() {
+            if (inactivityTimer) clearTimeout(inactivityTimer);
+            if (warningTimer) clearTimeout(warningTimer);
+            warningShown = false;
+            hideWarningModal();
+            
+            inactivityTimer = setTimeout(logoutUser, INACTIVITY_TIMEOUT);
+            warningTimer = setTimeout(showWarningModal, INACTIVITY_TIMEOUT - (2 * 60 * 1000));
+            sendHeartbeat();
+        }
+
+        function sendHeartbeat() {
+            fetch('heartbeat.php', {
+                method: 'POST',
+                credentials: 'same-origin'
+            }).catch(err => console.log('Heartbeat dropped:', err));
+        }
+
+        function logoutUser() {
+            const logoutMsg = document.createElement('div');
+            logoutMsg.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                            background: rgba(0,0,0,0.8); z-index: 9999; display: flex; 
+                            align-items: center; justify-content: center;">
+                    <div style="background: white; padding: 30px; border-radius: 16px; text-align: center; max-width: 400px; color: #1e293b;">
+                        <i class="fas fa-clock" style="font-size: 48px; color: #FF6F61; margin-bottom: 20px;"></i>
+                        <h3 style="font-weight:800; font-size:1.25rem;">Session Expired</h3>
+                        <p style="font-size:0.875rem; margin-top:4px;">You have been logged out due to inactivity.</p>
+                        <div style="margin-top: 20px;">
+                            <p style="font-size:0.75rem; color:#64748b;">Redirecting to login page...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(logoutMsg);
+            setTimeout(function() { window.location.href = '../logout.php'; }, 2000);
+        }
+
+        function showWarningModal() {
+            if (warningShown) return;
+            warningShown = true;
+            
+            const modal = document.createElement('div');
+            modal.id = 'sessionWarningModal';
+            modal.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                            background: rgba(0,0,0,0.5); z-index: 10000; display: flex; 
+                            align-items: center; justify-content: center;">
+                    <div style="background: white; padding: 30px; border-radius: 16px; text-align: center; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); color: #1e293b;">
+                        <i class="fas fa-hourglass-half" style="font-size: 48px; color: #FFB84D; margin-bottom: 20px;"></i>
+                        <h3 style="font-weight:800; font-size:1.25rem;">Session About to Expire</h3>
+                        <p style="font-size:0.875rem; margin-top:4px;">You will be logged out due to inactivity.</p>
+                        <p id="countdownText" style="font-size: 24px; font-weight: bold; margin: 15px 0;">2:00</p>
+                        <button onclick="keepSessionAlive()" style="background: #0284c7; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size:0.875rem;">
+                            Keep Session Alive
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            let secondsLeft = 120;
+            const countdownElement = document.getElementById('countdownText');
+            
+            const countdownInterval = setInterval(function() {
+                secondsLeft--;
+                const minutes = Math.floor(secondsLeft / 60);
+                const seconds = secondsLeft % 60;
+                if (countdownElement) {
+                    countdownElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+                if (secondsLeft <= 0) clearInterval(countdownInterval);
+            }, 1000);
+        }
+
+        function keepSessionAlive() {
+            hideWarningModal();
+            fetch('heartbeat.php', {
+                method: 'POST',
+                credentials: 'same-origin'
+            }).then(function() {
+                resetInactivityTimer();
+            }).catch(function(err) {
+                console.log('Heartbeat link dropped:', err);
+                resetInactivityTimer();
+            });
+        }
+
+        function hideWarningModal() {
+            const modal = document.getElementById('sessionWarningModal');
+            if (modal) modal.remove();
+        }
+
+        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'keydown'];
+        events.forEach(function(event) {
+            document.addEventListener(event, resetInactivityTimer, false);
+        });
+
+        resetInactivityTimer();
+        setInterval(function() {
+            if (!warningShown) sendHeartbeat();
+        }, 5 * 60 * 1000);
+    </script>
 </body>
 </html>

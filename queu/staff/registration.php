@@ -45,12 +45,10 @@ $sessionManager->logActivity('Viewed registration page');
 $query = "SELECT * FROM clinics WHERE is_active = 1 ORDER BY name";
 $clinics = $db->query($query)->fetchAll(PDO::FETCH_ASSOC);
 
-// Handle form submission
 $success_message = '';
 $error_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
-    
     $mrn = trim($_POST['mrn']);
     $first_name = trim($_POST['first_name']);
     $last_name = trim($_POST['last_name']);
@@ -130,16 +128,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
             }
         }
     </script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+    </style>
 </head>
-<body class="bg-slate-50 dark:bg-[#111827] text-slate-800 dark:text-slate-100 font-sans antialiased min-h-full transition-colors duration-200">
+<body class="bg-slate-50 dark:bg-[#111827] text-slate-800 dark:text-slate-100 font-sans antialiased min-h-screen transition-colors duration-200">
 
     <aside id="sidebar" class="fixed top-0 left-0 h-screen bg-white dark:bg-[#1f2937] border-r border-slate-300/90 dark:border-slate-700/80 shadow-xl md:shadow-none z-[1000] flex flex-col justify-between overflow-x-hidden transition-all duration-300 ease-in-out group/sidebar -translate-x-full md:translate-x-0 w-[270px] md:w-[80px] md:hover:w-[270px]">
+        
         <div>
             <div class="p-4 border-b border-slate-300/90 dark:border-slate-700/60 mb-6 flex flex-col items-center justify-center min-h-[150px]">
                 <div class="hidden md:flex md:group-hover/sidebar:hidden flex-col items-center justify-center font-extrabold text-xl tracking-wider text-sky-600 dark:text-sky-400 leading-tight select-none">
                     <span>C</span><span>E</span><span>S</span><span>H</span>
                 </div>
+
                 <div class="flex md:hidden md:group-hover/sidebar:flex flex-col items-center animate-[fadeIn_0.2s_ease-in-out]">
+                    <img src="../assets/images/logo.png" alt="Logo" class="max-w-[80px] h-auto rounded mb-3 opacity-90 transition-all duration-200 dark:brightness-110 dark:contrast-125 dark:drop-shadow-[0_0_8px_rgba(56,189,248,0.3)]" onerror="this.style.display='none'">
                     <h2 class="text-slate-800 dark:text-slate-100 text-sm font-extrabold tracking-tight text-center whitespace-nowrap">4ID Station Hospital</h2>
                     <p class="text-slate-400 dark:text-slate-400 text-[0.65rem] font-bold uppercase tracking-widest text-center whitespace-nowrap mt-0.5">Camp Evangelista</p>
                 </div>
@@ -150,77 +161,127 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
                     <?php if ($_SESSION['role'] === 'admin'): ?>
                     <li>
                         <a href="../admin/patients.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-3 border-l-4 border-transparent group/link">
-                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
-                                <i class="fas fa-arrow-left text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
-                            </div>
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0"><i class="fas fa-arrow-left text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i></div>
                             <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-[0.85rem] tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Patient Directory</span>
                         </a>
                     </li>
                     <?php endif; ?>
                     <li>
+                        <a href="clinic-dashboard.php?clinic_id=<?php echo isset($_SESSION['clinic_id']) ? $_SESSION['clinic_id'] : 1; ?>" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-3 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0"><i class="fas fa-desktop text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i></div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-[0.85rem] tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="registration.php" class="flex items-center rounded-xl font-semibold transition-all duration-150 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-l-4 border-sky-500 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-3">
-                            <div class="w-6 h-6 flex items-center justify-center shrink-0">
-                                <i class="fas fa-user-plus text-base"></i>
-                            </div>
-                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-[0.85rem] tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Register Patient</span>
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0"><i class="fas fa-user-plus text-base"></i></div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-[0.85rem] tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Registration</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="patient-queue.php" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-3 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0"><i class="fas fa-list text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i></div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-[0.85rem] tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">All Clinics Queue</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="../patient-portal/track-queue.php" target="_blank" class="flex items-center rounded-xl font-medium transition-all duration-150 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 p-3 justify-center md:justify-start gap-0 md:group-hover/sidebar:gap-3 border-l-4 border-transparent group/link">
+                            <div class="w-6 h-6 flex items-center justify-center shrink-0"><i class="fas fa-search text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i></div>
+                            <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-[0.85rem] tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Patient Portal</span>
                         </a>
                     </li>
                 </ul>
             </nav>
         </div>
+
+        <div class="p-3 md:p-2 md:group-hover/sidebar:p-4 border-t border-slate-300/90 dark:border-slate-700/80 shrink-0 transition-all duration-300">
+            <div class="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 md:p-0 md:group-hover/sidebar:p-3 border border-slate-200 dark:border-slate-700/50 md:border-transparent md:dark:border-transparent md:bg-transparent md:dark:bg-transparent md:group-hover/sidebar:bg-slate-50 md:group-hover/sidebar:dark:bg-slate-800/60 md:group-hover/sidebar:border-slate-200 md:group-hover/sidebar:dark:border-slate-700/50 flex items-center justify-center md:group-hover/sidebar:justify-start gap-3 md:gap-0 md:group-hover/sidebar:gap-3 transition-all duration-300 overflow-hidden">
+               <div class="w-10 h-10 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center text-sky-600 dark:text-sky-400 border border-slate-200 dark:border-slate-600 shrink-0 shadow-sm md:shadow-none md:group-hover/sidebar:shadow-sm">
+    <i class="fas fa-user-md"></i>
+</div>
+                <div class="overflow-hidden max-w-full md:max-w-0 md:group-hover/sidebar:max-w-full opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 transition-all duration-300 shrink-0 md:shrink md:group-hover/sidebar:shrink-0 min-w-0">
+                    <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5 whitespace-nowrap">Logged in as</p>
+                    <p class="text-sm font-bold text-slate-900 dark:text-white truncate leading-tight whitespace-nowrap"><?php echo htmlspecialchars(isset($_SESSION['full_name']) ? $_SESSION['full_name'] : $_SESSION['username']); ?></p>
+                    <p class="text-[11px] text-sky-600 dark:text-sky-400 font-medium capitalize mt-0.5 whitespace-nowrap"><?php echo htmlspecialchars($_SESSION['role']); ?></p>
+                </div>
+            </div>
+        </div>
     </aside>
 
-    <main class="min-h-screen ml-0 md:ml-[80px] p-5 md:p-8 transition-all duration-300">
+    <main class="min-h-screen ml-0 md:ml-[80px] p-6 md:p-8 transition-all duration-300">
         
-        <header class="flex flex-col sm:flex-row justify-between sm:items-center mb-8 pb-5 border-b border-slate-300/90 dark:border-slate-700/80 gap-4">
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-slate-200 dark:border-slate-800">
             <div class="flex items-center gap-4">
-                <button id="mobileMenuBtn" class="md:hidden p-2 text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1f2937] border border-slate-300 rounded-xl">
-                    <i class="fas fa-bars text-xl"></i>
+                <button id="mobileMenuBtn" class="md:hidden w-11 h-11 flex items-center justify-center text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1f2937] border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <i class="fas fa-bars text-lg"></i>
                 </button>
                 <div>
-                    <h1 class="text-slate-900 dark:text-white text-2xl md:text-3xl font-extrabold tracking-tight mb-0.5">New Patient Setup</h1>
-                    <p class="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">Configure internal medical profiles and record tracking tags</p>
+                    <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">New Patient Setup</h1>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Configure internal medical profiles and record tracking tags</p>
                 </div>
             </div>
             
-            <div class="flex items-center gap-3 md:gap-5">
-                <button id="themeToggleBtn" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-[#1f2937] text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl hover:text-sky-500 transition-all shadow-sm" title="Toggle Visual Mode">
-                    <i id="themeToggleIcon" class="fas fa-moon text-base"></i>
+            <div class="flex items-center gap-3 md:gap-4">
+                <button id="themeToggleBtn" class="w-11 h-11 flex items-center justify-center bg-white dark:bg-[#1f2937] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-amber-400 hover:border-sky-500 dark:hover:border-sky-400 transition-all shadow-sm">
+                    <i id="themeToggleIcon" class="fas fa-moon text-lg"></i>
                 </button>
+                
                 <?php if ($_SESSION['role'] === 'admin'): ?>
-                    <a href="../admin/patients.php" class="inline-flex items-center justify-center px-4 py-2.5 bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm"><i class="fas fa-arrow-left mr-2"></i> Back</a>
+                    <a href="../admin/patients.php" class="hidden sm:inline-flex items-center justify-center px-4 h-11 bg-white dark:bg-[#1f2937] border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shadow-sm"><i class="fas fa-arrow-left mr-2"></i> Back</a>
                 <?php endif; ?>
+
+                <div class="relative">
+                    <button id="profileMenuBtn" class="w-11 h-11 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-sky-500 dark:hover:border-sky-400 transition-all duration-150 focus:outline-none">
+                        <i class="fas fa-user-circle text-2xl"></i>
+                    </button>
+                    
+                    <div id="profileDropdown" class="hidden absolute right-0 mt-3 w-56 bg-white dark:bg-[#1f2937] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-[1100] animate-[modalFadeIn_0.15s_ease-out]">
+                        <div class="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 rounded-t-2xl">
+                            <p class="text-sm font-bold text-slate-900 dark:text-white truncate"><?php echo htmlspecialchars(isset($_SESSION['full_name']) ? $_SESSION['full_name'] : $_SESSION['username']); ?></p>
+                            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 capitalize"><?php echo htmlspecialchars($_SESSION['role']); ?></p>
+                        </div>
+                        <div class="p-2 flex flex-col gap-1">
+                            <a href="profile.php" class="flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                                <i class="fas fa-id-badge text-slate-400"></i> My Profile
+                            </a>
+                            <a href="../logout.php" onclick="return confirm('Confirm Logout?')" class="flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors">
+                                <i class="fas fa-sign-out-alt"></i> Logout Session
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
 
         <?php if (!empty($success_message)): ?>
             <div class="alert p-4 mb-6 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-between shadow-sm">
                 <div class="flex items-center"><i class="fas fa-check-circle mr-3 text-base"></i> <span class="text-xs font-bold uppercase tracking-wide"><?= htmlspecialchars($success_message) ?></span></div>
-                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-emerald-500"><i class="fas fa-times"></i></button>
+                <button onclick="this.parentElement.remove()" class="text-emerald-600/50 hover:text-emerald-500 transition-colors"><i class="fas fa-times"></i></button>
             </div>
         <?php endif; ?>
         <?php if (!empty($error_message)): ?>
             <div class="alert p-4 mb-6 bg-rose-50 dark:bg-rose-500/10 border border-rose-300 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-2xl flex items-center justify-between shadow-sm">
                 <div class="flex items-center"><i class="fas fa-exclamation-triangle mr-3 text-base"></i> <span class="text-xs font-bold uppercase tracking-wide"><?= htmlspecialchars($error_message) ?></span></div>
-                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-rose-500"><i class="fas fa-times"></i></button>
+                <button onclick="this.parentElement.remove()" class="text-rose-600/50 hover:text-rose-500 transition-colors"><i class="fas fa-times"></i></button>
             </div>
         <?php endif; ?>
 
-        <section class="bg-white dark:bg-[#1f2937] border border-slate-300 dark:border-slate-700/70 rounded-2xl shadow-sm overflow-hidden">
-            <div class="p-5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm tracking-wide uppercase">
-                <i class="fas fa-user-edit text-sky-500 text-base"></i> Profile Demographic Configuration
+        <section class="bg-white dark:bg-[#1f2937] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center gap-3 text-slate-900 dark:text-white font-extrabold text-sm tracking-wide uppercase">
+                <div class="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-500"><i class="fas fa-user-edit"></i></div>
+                Profile Demographic Configuration
             </div>
             
             <div class="p-6 md:p-8">
                 <form method="POST" action="">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Medical Record Number (MRN) *</label>
-                            <input type="text" name="mrn" class="w-full px-4 py-3 bg-slate-100 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-sky-600 dark:text-sky-400 font-mono font-bold rounded-xl focus:outline-none cursor-not-allowed select-all" value="MRN<?= date('Ymd') . rand(100, 999); ?>" readonly required>
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Medical Record Number (MRN) <span class="text-rose-500">*</span></label>
+                            <input type="text" name="mrn" class="w-full px-4 py-3.5 bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-sky-600 dark:text-sky-400 font-mono font-bold rounded-xl focus:outline-none cursor-not-allowed select-all" value="MRN<?= date('Ymd') . rand(100, 999); ?>" readonly required>
                         </div>
                         <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Patient Scope Type Classification *</label>
-                            <select name="patient_type" id="patientType" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Patient Scope Type <span class="text-rose-500">*</span></label>
+                            <select name="patient_type" id="patientType" class="w-full px-4 py-3.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
                                 <option value="">-- Select Designation --</option>
                                 <option value="Military Personnel">Military Personnel</option>
                                 <option value="Dependent">Dependent</option>
@@ -230,64 +291,70 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">First Name *</label>
-                            <input type="text" name="first_name" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">First Name <span class="text-rose-500">*</span></label>
+                            <input type="text" name="first_name" class="w-full px-4 py-3.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all shadow-sm" required>
                         </div>
                         <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Last Name *</label>
-                            <input type="text" name="last_name" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Last Name <span class="text-rose-500">*</span></label>
+                            <input type="text" name="last_name" class="w-full px-4 py-3.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all shadow-sm" required>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Gender Scope *</label>
-                            <select name="gender" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Gender Scope <span class="text-rose-500">*</span></label>
+                            <select name="gender" class="w-full px-4 py-3.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all shadow-sm" required>
                                 <option value="">-- Select Gender --</option>
                                 <option value="Male">Male</option>
                                 <option value="Female">Female</option>
                             </select>
                         </div>
                         <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date of Birth *</label>
-                            <input type="date" name="dob" id="dob" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all" required>
+                            <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date of Birth <span class="text-rose-500">*</span></label>
+                            <input type="date" name="dob" id="dob" class="w-full px-4 py-3.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all shadow-sm" required>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div class="flex flex-col gap-2">
                             <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Contact Phone Number</label>
-                            <input type="tel" name="contact_number" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all">
+                            <input type="tel" name="contact_number" class="w-full px-4 py-3.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all shadow-sm">
                         </div>
                         <div class="flex flex-col gap-2">
                             <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Home Address</label>
-                            <input type="text" name="address" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all">
+                            <input type="text" name="address" class="w-full px-4 py-3.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all shadow-sm">
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div class="flex flex-col gap-2">
                             <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Triage Qualifiers</label>
-                            <div class="flex items-center h-full gap-6 px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 rounded-xl">
-                                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer select-none"><input type="checkbox" name="is_pwd" id="isPwd" value="1" class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 accent-sky-500"> PWD</label>
-                                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer select-none"><input type="checkbox" name="is_senior" id="isSenior" value="1" class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 accent-sky-500"> Senior</label>
-                                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer select-none"><input type="checkbox" name="is_pregnant" id="isPregnant" value="1" class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 accent-sky-500"> Pregnant</label>
+                            <div class="flex items-center h-full gap-6 px-5 py-3.5 bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+                                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer select-none text-slate-700 dark:text-slate-300 hover:text-sky-600 transition-colors">
+                                    <input type="checkbox" name="is_pwd" id="isPwd" value="1" class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 accent-sky-500 cursor-pointer"> PWD
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer select-none text-slate-700 dark:text-slate-300 hover:text-sky-600 transition-colors">
+                                    <input type="checkbox" name="is_senior" id="isSenior" value="1" class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 accent-sky-500 cursor-pointer"> Senior
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-sm font-semibold cursor-pointer select-none text-slate-700 dark:text-slate-300 hover:text-sky-600 transition-colors">
+                                    <input type="checkbox" name="is_pregnant" id="isPregnant" value="1" class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 accent-sky-500 cursor-pointer"> Pregnant
+                                </label>
                             </div>
                         </div>
                     </div>
 
-                    <div id="priorityPreview" class="hidden items-center justify-between p-4 mb-6 bg-sky-50 dark:bg-sky-500/10 border border-sky-300 dark:border-sky-500/20 rounded-xl transition-all">
+                    <div id="priorityPreview" class="hidden items-center justify-between p-4 mb-6 bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 rounded-xl transition-all shadow-sm">
                         <span class="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Evaluated Priority Classification Level:</span>
                         <div class="flex items-center gap-3">
-                            <span id="priorityBadge" class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider text-white">PR3</span>
+                            <span id="priorityBadge" class="px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider text-white">PR3</span>
                             <span id="priorityDescription" class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300"></span>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 pt-4 border-t border-slate-100 dark:border-slate-800">
                         <div class="flex flex-col gap-2">
                             <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Primary Clinic Allocation Unit</label>
-                            <select name="clinic_id" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 text-sm">
+                            <select name="clinic_id" class="w-full px-4 py-3.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all shadow-sm">
                                 <option value="" disabled selected hidden>Clinics</option>
                                 <option value="">Registration</option>
                                 <?php foreach ($clinics as $clinic): ?>
@@ -299,13 +366,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
                         </div>
                         <div class="flex flex-col gap-2">
                             <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Target Queue Slot/Time</label>
-                            <input type="datetime-local" name="appointment_time" class="w-full px-4 py-3 bg-slate-50 dark:bg-[#111827] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 text-sm">
+                            <input type="datetime-local" name="appointment_time" class="w-full px-4 py-3.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-sm transition-all shadow-sm">
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-700">
-                        <button type="reset" class="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm">Clear Inputs</button>
-                        <button type="submit" name="register_patient" class="inline-flex items-center justify-center px-6 py-2.5 bg-sky-600 dark:bg-sky-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-sky-700 dark:hover:bg-sky-600 transition-all shadow-sm"><i class="fas fa-save mr-2 text-sm"></i> Commit Registration</button>
+                    <div class="flex items-center justify-end gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
+                        <button type="reset" class="px-6 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm">Clear Inputs</button>
+                        <button type="submit" name="register_patient" class="inline-flex items-center justify-center px-8 py-3 bg-sky-600 text-white font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-sky-500 transition-all shadow-md shadow-sky-900/20"><i class="fas fa-save mr-2 text-sm"></i> Commit Registration</button>
                     </div>
                 </form>
             </div>
@@ -313,7 +380,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
     </main>
 
     <script>
-        // Live Priority Triage Classifier Update Engine
         function updatePriorityPreview() {
             const type = document.getElementById('patientType').value;
             const isPwd = document.getElementById('isPwd').checked;
@@ -322,16 +388,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
             
             let priority = 'PR3'; 
             let desc = 'Standard Processing Queue'; 
-            let badgeClass = ' bg-sky-500 dark:bg-sky-500/20 text-sky-600 dark:text-sky-400';
+            let badgeClass = ' bg-sky-500 dark:bg-sky-500 text-white';
             
             if (type === 'Military Personnel') { 
                 priority = 'PR1'; 
                 desc = 'Active Troop Service Priority'; 
-                badgeClass = ' bg-emerald-500 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'; 
+                badgeClass = ' bg-emerald-500 dark:bg-emerald-500 text-white'; 
             } else if (isPwd || isSenior || isPregnant) { 
                 priority = 'PR2'; 
                 desc = 'Special Privilege Allocation'; 
-                badgeClass = ' bg-amber-500 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400'; 
+                badgeClass = ' bg-amber-500 dark:bg-amber-500 text-white'; 
             }
             
             const preview = document.getElementById('priorityPreview');
@@ -340,7 +406,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
                 preview.classList.add('flex');
                 const badge = document.getElementById('priorityBadge');
                 badge.textContent = priority;
-                badge.className = 'px-2.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider' + badgeClass;
+                badge.className = 'px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider' + badgeClass;
                 document.getElementById('priorityDescription').textContent = desc;
             } else {
                 preview.classList.remove('flex');
@@ -353,7 +419,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
         document.getElementById('isSenior').addEventListener('change', updatePriorityPreview);
         document.getElementById('isPregnant').addEventListener('change', updatePriorityPreview);
 
-        // Auto Senior Flag Trigger by DOB Configuration
         document.getElementById('dob')?.addEventListener('change', function() {
             const dob = new Date(this.value);
             const today = new Date();
@@ -365,28 +430,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
             }
         });
 
-        // Theme Persistent Logic Core
         const themeToggleBtn = document.getElementById('themeToggleBtn');
         const themeToggleIcon = document.getElementById('themeToggleIcon');
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark'); 
-            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-lg text-amber-400';
+        } else {
+            if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-lg text-slate-500';
         }
         if(themeToggleBtn) {
             themeToggleBtn.addEventListener('click', () => {
                 if (document.documentElement.classList.contains('dark')) {
                     document.documentElement.classList.remove('dark'); 
                     localStorage.setItem('theme', 'light'); 
-                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-base';
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-moon text-lg text-slate-500';
                 } else {
                     document.documentElement.classList.add('dark'); 
                     localStorage.setItem('theme', 'dark'); 
-                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-base text-amber-400';
+                    if(themeToggleIcon) themeToggleIcon.className = 'fas fa-sun text-lg text-amber-400';
                 }
             });
         }
 
-        // Sidebar Responsive Toggle Utility
+        const profileMenuBtn = document.getElementById('profileMenuBtn');
+        const profileDropdown = document.getElementById('profileDropdown');
+        if (profileMenuBtn && profileDropdown) {
+            profileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileDropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', () => profileDropdown.classList.add('hidden'));
+        }
+
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
         const sidebar = document.getElementById('sidebar');
         if (mobileMenuBtn && sidebar) {
@@ -403,7 +478,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['register_patient'])) {
             }
         });
 
-        // Dismiss Alerts automatically
         setTimeout(() => {
             document.querySelectorAll('.alert').forEach(alert => {
                 alert.style.transition = 'all 0.4s ease-in-out';
