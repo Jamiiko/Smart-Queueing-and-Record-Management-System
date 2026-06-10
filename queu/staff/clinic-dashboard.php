@@ -277,7 +277,7 @@ if ($stats['total'] > 0) {
                                 <div class="w-6 h-6 flex items-center justify-center shrink-0">
                                     <i class="fas fa-search text-base text-slate-400 group-hover/link:text-sky-500 transition-colors"></i>
                                 </div>
-                                <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Search Patient</span>
+                                <span class="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 text-xs tracking-wide whitespace-nowrap transition-opacity duration-200 origin-left">Register Patient</span>
                             </a>
                         </li>
                     </ul>
@@ -577,8 +577,8 @@ if ($stats['total'] > 0) {
                         </h3>
                     </div>
                     <div class="p-4 flex flex-col gap-2.5">
-                        <a href="search-patient.php" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2">
-                            <i class="fas fa-search"></i> Search Patient Directory
+                        <a href="registration.php" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-user-plus"></i> Register New Patient
                         </a>
                         <a href="patient-queue.php" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2">
                             <i class="fas fa-list"></i> View All Clinics Tracker

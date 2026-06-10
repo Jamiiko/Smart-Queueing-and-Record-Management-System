@@ -10,7 +10,6 @@ class QueueManager {
     /**
      * Generate a unique transaction token for tracking
      * Format: TXN-YYYYMMDD-XXXXXX (e.g., TXN-20260126-000123)
-     * Now with retry logic to avoid duplicates
      */
     public function generateTransactionToken() {
         $max_attempts = 5;
@@ -40,7 +39,7 @@ class QueueManager {
     }
     
     /**
-     * Get the last sequence number for today's tokens (DEPRECATED - not used)
+     * Get the last sequence number for today's tokens (DEPRECATED)
      */
     private function getLastTokenSequence() {
         $query = "SELECT COUNT(*) as count FROM queue_entries 
@@ -186,6 +185,9 @@ class QueueManager {
         return ['success' => false, 'error' => 'Database error'];
     }
     
+    // =========================================================================
+    // FULLY FIXED: auto-routes patient to next clinic and assigns a NEW token
+    // =========================================================================
     public function queueForNextClinic($patient_id, $current_clinic_id) {
         $query = "SELECT * FROM patients WHERE id = :patient_id";
         $stmt = $this->conn->prepare($query);
@@ -193,29 +195,33 @@ class QueueManager {
         $stmt->execute();
         $patient = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        if (!$patient || $patient['patient_type'] != 'military') {
-            return ['success' => false, 'error' => 'Patient not found or not military'];
+        if (!$patient) {
+            return ['success' => false, 'error' => 'Patient not found'];
         }
-        
-        // Get patient's existing queue number and batch hour from FIRST entry of the day
-        $existing_query = "SELECT queue_number, batch_hour, transaction_token 
-                           FROM queue_entries 
+
+        // Get patient's existing entry details to carry over their queue number prefix
+        $existing_query = "SELECT queue_number, batch_hour FROM queue_entries 
                            WHERE patient_id = :patient_id 
+                           AND clinic_id = :clinic_id
                            AND DATE(registered_at) = CURDATE() 
-                           ORDER BY registered_at ASC
-                           LIMIT 1";
+                           ORDER BY id DESC LIMIT 1";
         $existing_stmt = $this->conn->prepare($existing_query);
         $existing_stmt->bindParam(':patient_id', $patient_id);
+        $existing_stmt->bindParam(':clinic_id', $current_clinic_id);
         $existing_stmt->execute();
         $existing = $existing_stmt->fetch(PDO::FETCH_ASSOC);
         
-        if (!$existing) {
-            return ['success' => false, 'error' => 'No existing queue entry found'];
+        if ($existing) {
+            $queue_number = $existing['queue_number'];
+            $batch_hour = $existing['batch_hour'];
+        } else {
+            $batch_info = $this->getCurrentBatch();
+            $batch_hour = $batch_info['is_full'] ? $batch_info['next_hour'] : $batch_info['current_hour'];
+            $queue_number = $this->generateQueueNumber($this->determinePriority($patient), $batch_hour);
         }
-        
-        $queue_number = $existing['queue_number'];
-        $batch_hour = $existing['batch_hour'];
-        $transaction_token = $existing['transaction_token']; // REUSE the same token!
+
+        // Generate a BRAND NEW UNIQUE TOKEN here (Fixes the 1062 Duplicate Error)
+        $transaction_token = $this->generateTransactionToken(); 
         
         // Get clinics already completed (including current one)
         $completed_query = "SELECT DISTINCT clinic_id 
@@ -245,7 +251,7 @@ class QueueManager {
         
         $next_clinic = $clinics_by_congestion[0];
         
-        // Check if already in queue for this clinic
+        // Check if already in queue for this upcoming clinic
         $check_query = "SELECT COUNT(*) as count FROM queue_entries 
                         WHERE patient_id = :patient_id 
                         AND clinic_id = :clinic_id 
@@ -265,7 +271,7 @@ class QueueManager {
         
         $priority = $this->determinePriority($patient);
         
-        // Insert new queue entry - REUSE the same transaction_token
+        // Insert new queue entry with the new UNIQUE token
         $insert_query = "INSERT INTO queue_entries 
                          (queue_number, transaction_token, patient_id, priority_level, clinic_id, 
                           appointment_type, batch_hour, registered_at, status, token_created_at) 
@@ -275,7 +281,7 @@ class QueueManager {
         
         $insert_stmt = $this->conn->prepare($insert_query);
         $insert_stmt->bindParam(':queue_number', $queue_number);
-        $insert_stmt->bindParam(':transaction_token', $transaction_token);
+        $insert_stmt->bindParam(':transaction_token', $transaction_token); // NEW UNIQUE TOKEN
         $insert_stmt->bindParam(':patient_id', $patient_id);
         $insert_stmt->bindParam(':priority', $priority);
         $insert_stmt->bindParam(':clinic_id', $next_clinic['id']);

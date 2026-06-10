@@ -41,413 +41,165 @@ $stmt->execute();
 $queue = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$queue) {
-    die("Invalid ticket request.");
+    die("Invalid or expired transaction token.");
 }
 
-// ============================================
-// QR CODE URL - Points to patient-portal/track-queue.php
-// ============================================
-// Get base URL dynamically (handles localhost, domain, subfolder paths)
-$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
-$host = $_SERVER['HTTP_HOST'];
-$base_path = rtrim(dirname(dirname($_SERVER['PHP_SELF'])), '/'); // Gets /queu (or root)
-
-// Construct the absolute URL to patient-portal/track-queue.php
-$tracking_url = $protocol . $host . $base_path . '/patient-portal/track-queue.php?token=' . urlencode($queue['transaction_token']);
-$qr_code_url = "https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($tracking_url);
-
-// Determine priority display
-$priority_display = [
-    'PR1' => ['text' => 'MILITARY', 'bg' => '#FF6F61', 'color' => 'white'],
-    'PR2' => ['text' => 'PRIORITY', 'bg' => '#FFB84D', 'color' => '#333'],
-    'PR3' => ['text' => 'REGULAR', 'bg' => '#A4D1B1', 'color' => '#333']
-];
-$p_info = $priority_display[$queue['priority_level']] ?? $priority_display['PR3'];
+// Generate Priority Label
+$priority_label = "Standard";
+if ($queue['priority_level'] == 'PR1') $priority_label = "Priority 1 (Active Mil)";
+if ($queue['priority_level'] == 'PR2') {
+    $reasons = [];
+    if ($queue['is_senior']) $reasons[] = "Senior";
+    if ($queue['is_pwd']) $reasons[] = "PWD";
+    if ($queue['is_pregnant']) $reasons[] = "Pregnant";
+    $priority_label = "Priority 2 (" . implode(', ', $reasons) . ")";
+}
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Print Ticket | <?php echo htmlspecialchars($queue['queue_number']); ?> | Camp Evangelista</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>Print Ticket - <?php echo htmlspecialchars($queue['queue_number']); ?></title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        /* Thermal Printer Optimized - 80mm width */
-        @page {
-            size: 80mm auto;
-            margin: 0;
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    }
+                }
+            }
         }
-        
+    </script>
+    <style>
         @media print {
             body { 
+                background: white !important; 
+                margin: 0 !important; 
+                padding: 0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .no-print { display: none !important; }
+            .ticket-wrapper { 
+                box-shadow: none !important; 
+                border: none !important; 
+                border-radius: 0 !important; 
+                margin: 0 !important; 
+                padding: 0 !important; 
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            @page { 
                 margin: 0; 
-                padding: 0;
-                background: white;
+                /* Typical thermal printer widths are 58mm or 80mm */
+                size: 80mm auto; 
             }
-            .no-print { 
-                display: none !important; 
-            }
-            .ticket {
-                box-shadow: none;
-                border: none;
-                margin: 0;
-                padding: 8px;
-                width: 100%;
-            }
-            .ticket-header {
-                padding: 8px 0 !important;
-            }
-            .queue-number {
-                font-size: 28px !important;
-                padding: 8px !important;
-            }
-            .qr-code img {
-                width: 80px !important;
-                height: 80px !important;
-            }
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', 'Segoe UI', sans-serif;
-            background: #e0e0e0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-        }
-        
-        .ticket {
-            max-width: 350px;
-            width: 100%;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            overflow: hidden;
-            font-size: 11px;
-        }
-        
-        .ticket-section {
-            padding: 10px 12px;
-            border-bottom: 1px dashed #e0e0e0;
-        }
-        
-        .ticket-section:last-child {
-            border-bottom: none;
-        }
-        
-        /* Header */
-        .ticket-header {
-            text-align: center;
-            background: #1a3a5c;
-            color: white;
-            padding: 12px;
-        }
-        
-        .hospital-name {
-            font-size: 14px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-        }
-        
-        .hospital-address {
-            font-size: 8px;
-            opacity: 0.8;
-            margin-top: 2px;
-        }
-        
-        .ticket-type {
-            background: rgba(255,255,255,0.2);
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 9px;
-            margin-top: 6px;
-            font-weight: 600;
-        }
-        
-        /* Queue Number */
-        .queue-section {
-            text-align: center;
-            padding: 16px 12px !important;
-            background: #f8f9fa;
-        }
-        
-        .queue-label {
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #666;
-        }
-        
-        .queue-number {
-            font-size: 32px;
-            font-weight: 800;
-            font-family: 'Courier New', monospace;
-            letter-spacing: 2px;
-            color: #1a3a5c;
-            background: white;
-            padding: 8px 16px;
-            border-radius: 8px;
-            display: inline-block;
-            margin-top: 6px;
-            border: 1px solid #e0e0e0;
-        }
-        
-        /* Priority Badge */
-        .priority-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 9px;
-            font-weight: 700;
-            margin-top: 8px;
-        }
-        
-        /* Token Section */
-        .token-section {
-            background: #f0f7ff;
-            text-align: center;
-        }
-        
-        .token-label {
-            font-size: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #4A90E2;
-        }
-        
-        .token-value {
-            font-size: 11px;
-            font-weight: 700;
-            font-family: 'Courier New', monospace;
-            background: white;
-            padding: 6px 10px;
-            border-radius: 6px;
-            display: inline-block;
-            margin-top: 6px;
-            border: 1px solid #d0e0f0;
-            word-break: break-all;
-        }
-        
-        /* Info Rows */
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-            border-bottom: 1px dotted #f0f0f0;
-        }
-        
-        .info-row:last-child {
-            border-bottom: none;
-        }
-        
-        .info-label {
-            color: #666;
-            font-weight: 500;
-        }
-        
-        .info-value {
-            font-weight: 600;
-            color: #333;
-            text-align: right;
-        }
-        
-        /* QR Section */
-        .qr-section {
-            text-align: center;
-            background: white;
-        }
-        
-        .qr-code {
-            display: inline-block;
-            margin: 5px 0;
-        }
-        
-        .qr-code img {
-            width: 90px;
-            height: 90px;
-            border: 1px solid #e0e0e0;
-            padding: 4px;
-            background: white;
-        }
-        
-        .tracking-note {
-            font-size: 8px;
-            color: #888;
-            margin-top: 5px;
-        }
-        
-        /* Footer */
-        .ticket-footer {
-            text-align: center;
-            background: #f5f5f5;
-            font-size: 8px;
-            color: #999;
-            padding: 10px !important;
-        }
-        
-        .watermark {
-            font-size: 7px;
-            color: #ccc;
-            text-align: center;
-            margin-top: 8px;
-        }
-        
-        /* Button Group */
-        .button-group {
-            display: flex;
-            gap: 12px;
-            margin-top: 16px;
-        }
-        
-        .btn-print {
-            flex: 1;
-            background: #009688;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 40px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        
-        .btn-print:hover {
-            background: #00796B;
-        }
-        
-        .btn-back {
-            flex: 1;
-            background: #4A90E2;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 40px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 14px;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.2s;
-        }
-        
-        .btn-back:hover {
-            background: #3A7BC8;
-            transform: translateY(-1px);
         }
     </style>
 </head>
-<body>
-    <div>
-        <!-- Ticket -->
-        <div class="ticket">
-            <!-- Header -->
-            <div class="ticket-header">
-                <div class="hospital-name">4ID STATION HOSPITAL</div>
-                <div class="hospital-address">Camp Evangelista, Cagayan de Oro City</div>
-                <div class="ticket-type">OUTPATIENT QUEUE TICKET</div>
-            </div>
+<body class="bg-slate-50 dark:bg-[#111827] font-sans antialiased min-h-screen flex items-center justify-center p-6 transition-colors duration-200">
+
+    <div class="max-w-md w-full mx-auto flex flex-col gap-6">
+
+        <div class="no-print flex justify-between items-center px-2">
+            <h1 class="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">Queue Ticket Preview</h1>
+            <button onclick="document.documentElement.classList.toggle('dark')" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-[#1f2937] border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 shadow-sm transition-colors">
+                <i class="fas fa-moon dark:hidden"></i>
+                <i class="fas fa-sun hidden dark:block text-amber-400"></i>
+            </button>
+        </div>
+
+        <div class="ticket-wrapper bg-white text-black p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700/50 mx-auto w-full max-w-[380px]">
             
-            <!-- Queue Number -->
-            <div class="ticket-section queue-section">
-                <div class="queue-label">YOUR QUEUE NUMBER</div>
-                <div class="queue-number"><?php echo htmlspecialchars($queue['queue_number']); ?></div>
-                <div>
-                    <span class="priority-badge" style="background: <?php echo $p_info['bg']; ?>; color: <?php echo $p_info['color']; ?>;">
-                        <?php echo $p_info['text']; ?>
-                    </span>
+            <div class="text-center pb-5 border-b-2 border-dashed border-gray-300">
+                <img src="../assets/images/logo.png" alt="CESH Logo" class="w-14 h-14 mx-auto mb-2 grayscale" onerror="this.style.display='none'">
+                <h2 class="text-[13px] font-extrabold tracking-widest uppercase leading-tight">4ID Station Hospital</h2>
+                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">Camp Evangelista</p>
+                <div class="mt-4 bg-gray-100 py-1.5 px-3 rounded text-[11px] font-bold uppercase tracking-widest">
+                    Official Queue Ticket
                 </div>
             </div>
-            
-            <!-- Transaction Token -->
-            <div class="ticket-section token-section">
-                <div class="token-label"><i class="fas fa-key"></i> PRIVATE TRACKING TOKEN</div>
-                <div class="token-value"><?php echo htmlspecialchars($queue['transaction_token']); ?></div>
-                <div style="font-size: 7px; margin-top: 4px; color: #666;">
-                    Keep this token private - used to track your queue
+
+            <div class="text-center py-6 border-b-2 border-dashed border-gray-300">
+                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Your Queue Number</p>
+                <div class="text-5xl font-black font-mono tracking-tighter my-2 text-black">
+                    <?php echo htmlspecialchars($queue['queue_number']); ?>
+                </div>
+                <p class="text-xs font-bold uppercase mt-2">
+                    <?php echo htmlspecialchars($queue['clinic_name']); ?>
+                </p>
+            </div>
+
+            <div class="py-5 space-y-2 border-b-2 border-dashed border-gray-300">
+                <div class="flex justify-between items-start text-[11px]">
+                    <span class="font-bold text-gray-500 uppercase">Patient Name:</span>
+                    <span class="font-extrabold text-right ml-4"><?php echo htmlspecialchars($queue['last_name'] . ', ' . $queue['first_name']); ?></span>
+                </div>
+                <div class="flex justify-between items-start text-[11px]">
+                    <span class="font-bold text-gray-500 uppercase">MRN:</span>
+                    <span class="font-bold font-mono text-right ml-4"><?php echo htmlspecialchars($queue['mrn']); ?></span>
+                </div>
+                <div class="flex justify-between items-start text-[11px]">
+                    <span class="font-bold text-gray-500 uppercase">Category:</span>
+                    <span class="font-bold text-right ml-4"><?php echo htmlspecialchars($queue['patient_type']); ?></span>
+                </div>
+                <div class="flex justify-between items-start text-[11px]">
+                    <span class="font-bold text-gray-500 uppercase">Priority:</span>
+                    <span class="font-bold text-right ml-4"><?php echo $priority_label; ?></span>
                 </div>
             </div>
-            
-            <!-- Patient Information -->
-            <div class="ticket-section">
-                <div class="info-row">
-                    <span class="info-label">Patient Name</span>
-                    <span class="info-value"><?php echo htmlspecialchars($queue['last_name'] . ', ' . $queue['first_name']); ?></span>
+
+            <div class="pt-5 text-center">
+                <div class="mx-auto w-24 h-24 bg-gray-100 border border-gray-300 rounded flex items-center justify-center mb-4">
+                    <i class="fas fa-qrcode text-4xl text-gray-400"></i>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">MRN</span>
-                    <span class="info-value"><?php echo htmlspecialchars($queue['mrn']); ?></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Clinic</span>
-                    <span class="info-value"><?php echo htmlspecialchars($queue['clinic_name']); ?></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Patient Type</span>
-                    <span class="info-value"><?php echo ucfirst($queue['patient_type']); ?></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Date</span>
-                    <span class="info-value"><?php echo date('M d, Y', strtotime($queue['registered_at'])); ?></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Time</span>
-                    <span class="info-value"><?php echo date('h:i A', strtotime($queue['registered_at'])); ?></span>
+                <p class="text-[10px] font-bold text-gray-800 uppercase tracking-wide leading-tight mb-2">
+                    <i class="fas fa-bell mr-1"></i> Please wait for your number<br>to be called at the clinic.
+                </p>
+                <div class="text-[9px] text-gray-500 font-mono mt-4">
+                    Date: <?php echo date('m/d/Y h:i A', strtotime($queue['registered_at'])); ?><br>
+                    Token: <?php echo substr($queue['transaction_token'], 0, 12); ?>...
                 </div>
             </div>
-            
-            <!-- QR Code Section -->
-            <div class="ticket-section qr-section">
-                <div class="qr-code">
-                    <img src="<?php echo $qr_code_url; ?>" alt="QR Code">
-                </div>
-                <div class="tracking-note">
-                    <i class="fas fa-qrcode"></i> Scan to track your queue status
-                </div>
-                <div style="font-size: 7px; margin-top: 4px; color: #888;">
-                    or visit: /patient-portal/track-queue.php
-                </div>
-            </div>
-            
-            <!-- Footer Instructions -->
-            <div class="ticket-section ticket-footer">
-                <div><i class="fas fa-bell"></i> Please wait for your number to be called</div>
-                <div style="margin-top: 4px;"><i class="fas fa-phone-alt"></i> For concerns: (088) 123-4567</div>
-                <div class="watermark">Ticket #: <?php echo date('YmdHis'); ?></div>
-            </div>
+
+        </div>
+
+        <div class="no-print grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+            <button onclick="window.print()" class="flex items-center justify-center gap-2 w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-sm uppercase tracking-wider shadow-md shadow-sky-600/20 transition-all active:scale-[0.98]">
+                <i class="fas fa-print"></i> Print Ticket
+            </button>
+            <a href="clinic-dashboard.php?clinic_id=<?php echo $queue['clinic_id']; ?>" class="flex items-center justify-center gap-2 w-full py-3.5 bg-white dark:bg-[#1f2937] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm uppercase tracking-wider shadow-sm transition-all active:scale-[0.98]">
+                <i class="fas fa-arrow-left"></i> Dashboard
+            </a>
         </div>
         
-        <!-- Screen Buttons -->
-        <div class="no-print">
-            <div class="button-group">
-                <button onclick="window.print()" class="btn-print">
-                    <i class="fas fa-print"></i> Print Ticket
-                </button>
-                <a href="clinic-dashboard.php?clinic_id=<?php echo $queue['clinic_id']; ?>" class="btn-back">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
-                </a>
-            </div>
-        </div>
     </div>
-    
+
     <script>
+        // Ensure theme is set correctly based on preference (outside of the print wrapper)
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
         // Auto open print dialog when page loads
-        setTimeout(function() {
-            window.print();
-        }, 500);
+        window.addEventListener('DOMContentLoaded', (event) => {
+            setTimeout(function() {
+                window.print();
+            }, 500);
+        });
     </script>
 </body>
 </html>
